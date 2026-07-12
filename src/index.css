@@ -1,0 +1,242 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #F8F5FF;
+    color: #1F2937;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #F3E8FF;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #C084FC;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #8B5CF6;
+  }
+}
+
+@layer components {
+  .gradient-text {
+    background: linear-gradient(135deg, #8B5CF6 0%, #C084FC 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(221, 214, 254, 0.4);
+  }
+  .purple-btn {
+    background: linear-gradient(135deg, #8B5CF6 0%, #C084FC 100%);
+    color: white;
+    border-radius: 12px;
+    padding: 10px 20px;
+    font-weight: 600;
+    transition: all 0.2s;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  }
+  .purple-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+  }
+  .purple-btn:active {
+    transform: translateY(0);
+  }
+}
+
+/* ===== DARK MODE — Purple Ambience × Flat Yellow ===== */
+/*
+  Palet:
+  bg dasar     #141020  (ungu gelap dalam)
+  card         #211B34  (jelas lebih terang dari bg)
+  card hover   #272040
+  elevated     #2C2447  (dropdown/popover/tooltip)
+  border       #372F55
+  border soft  #2C2547
+  teks utama   #F3F0FC
+  teks sekunder#B8ADD9
+  teks muted   #8E82B8
+  violet aksen #A78BFA
+  kuning flat  #F5C84C (soft)
+*/
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #141020;
+  color: #F3F0FC;
+}
+
+/* --- Surfaces: card harus kontras dengan background --- */
+html.dark .bg-white {
+  background-color: #211B34 !important;
+}
+html.dark .bg-white\/80,
+html.dark .bg-white\/90 {
+  background-color: rgba(33, 27, 52, 0.9) !important;
+}
+html.dark .bg-gray-50 { background-color: #1B1530 !important; }
+html.dark .bg-gray-100 { background-color: #272040 !important; }
+html.dark .bg-gray-200 { background-color: #302748 !important; }
+html.dark .bg-gray-300 { background-color: #3A3158 !important; }
+html.dark .bg-lavender-50 { background-color: #2A2344 !important; }
+html.dark .bg-lavender-100 { background-color: #322A50 !important; }
+html.dark .bg-lavender-200 { background-color: #3B3160 !important; }
+html.dark .bg-violet-50 { background-color: #2E2452 !important; }
+html.dark .bg-violet-100 { background-color: #372B60 !important; }
+html.dark .bg-purple-50 { background-color: #2E2452 !important; }
+html.dark .bg-purple-100 { background-color: #372B60 !important; }
+
+/* Pill / chip berwarna — jangan menyatu dengan bg gelap */
+html.dark .bg-green-50 { background-color: #14301F !important; }
+html.dark .bg-emerald-100 { background-color: #123528 !important; }
+html.dark .bg-red-50 { background-color: #391722 !important; }
+html.dark .bg-pink-100 { background-color: #3D1B33 !important; }
+html.dark .bg-blue-100 { background-color: #1B2A4A !important; }
+html.dark .bg-amber-100 { background-color: #3A2F12 !important; }
+html.dark .bg-amber-400 { background-color: #F5C84C !important; }
+html.dark .bg-orange-400 { background-color: #E8A34C !important; }
+
+/* --- Borders --- */
+html.dark .border-purple-100 { border-color: #372F55 !important; }
+html.dark .border-purple-50 { border-color: #2C2547 !important; }
+html.dark .border-gray-100 { border-color: #2C2547 !important; }
+html.dark .border-gray-200 { border-color: #372F55 !important; }
+html.dark .border-gray-300 { border-color: #443A68 !important; }
+html.dark .border-violet-400 { border-color: #A78BFA !important; }
+html.dark .border-violet-200 { border-color: #5C4B94 !important; }
+
+/* --- Teks: kontras cukup, tidak menyilaukan --- */
+html.dark .text-gray-900 { color: #F3F0FC !important; }
+html.dark .text-gray-800 { color: #F3F0FC !important; }
+html.dark .text-gray-700 { color: #D9D1F0 !important; }
+html.dark .text-gray-600 { color: #B8ADD9 !important; }
+html.dark .text-gray-500 { color: #9C90C4 !important; }
+html.dark .text-gray-400 { color: #8E82B8 !important; }
+html.dark .text-gray-300 { color: #6E6296 !important; }
+html.dark .text-purple-400 { color: #C4B5FD !important; }
+html.dark .text-purple-500 { color: #B79FF7 !important; }
+html.dark .text-purple-600 { color: #C4B5FD !important; }
+html.dark .text-violet-500 { color: #B79FF7 !important; }
+html.dark .text-violet-600 { color: #C4B5FD !important; }
+html.dark .text-violet-700 { color: #D5C8FC !important; }
+
+/* Warna status — dinaikkan agar terbaca di bg gelap */
+html.dark .text-green-600 { color: #6FDCA0 !important; }
+html.dark .text-emerald-500, html.dark .text-emerald-600 { color: #5ED9A8 !important; }
+html.dark .text-red-500 { color: #F58EA4 !important; }
+html.dark .text-pink-500 { color: #F48EC0 !important; }
+html.dark .text-blue-500 { color: #7EB2F7 !important; }
+html.dark .text-amber-500 { color: #F5C84C !important; }
+
+/* --- Aksen kuning flat sebagai penekanan --- */
+html.dark .gradient-text {
+  background: linear-gradient(135deg, #C4B5FD 0%, #F5C84C 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* --- Hover states --- */
+html.dark .hover\:bg-lavender-50:hover { background-color: #2A2344 !important; }
+html.dark .hover\:bg-lavender-100:hover { background-color: #322A50 !important; }
+html.dark .hover\:bg-purple-50:hover { background-color: #2A2344 !important; }
+html.dark .hover\:bg-red-50:hover { background-color: #391722 !important; }
+html.dark .hover\:bg-red-100:hover { background-color: #47202C !important; }
+html.dark .hover\:text-violet-600:hover { color: #C4B5FD !important; }
+html.dark .hover\:text-red-500:hover { color: #F58EA4 !important; }
+html.dark .hover\:border-violet-300:hover { border-color: #7C68B8 !important; }
+html.dark .hover\:border-violet-200:hover { border-color: #5C4B94 !important; }
+html.dark .hover\:shadow-soft:hover,
+html.dark .shadow-card, html.dark .shadow-soft {
+  --tw-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35) !important;
+  box-shadow: var(--tw-shadow) !important;
+}
+
+/* --- Input / form --- */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: #272040;
+  color: #F3F0FC;
+  border-color: #372F55;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #8E82B8;
+}
+html.dark input:focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  border-color: #A78BFA;
+  outline-color: #A78BFA;
+}
+
+/* --- Dropdown / popover / modal — elevated di atas card --- */
+html.dark [class*="absolute"][class*="bg-white"],
+html.dark [class*="fixed"][class*="bg-white"] {
+  background-color: #2C2447 !important;
+  border-color: #443A68 !important;
+}
+
+html.dark .glass-card {
+  background: rgba(33, 27, 52, 0.9);
+  border-color: rgba(55, 47, 85, 0.7);
+}
+
+/* --- Recharts: grid & teks jangan menyala / jangan tenggelam --- */
+html.dark .recharts-cartesian-grid line { stroke: #2E2650 !important; }
+html.dark .recharts-cartesian-axis-tick text { fill: #8E82B8 !important; }
+html.dark .recharts-legend-item-text { color: #B8ADD9 !important; }
+html.dark .recharts-polar-grid-angle line,
+html.dark .recharts-polar-grid-concentric path,
+html.dark .recharts-polar-grid-concentric polygon { stroke: #2E2650 !important; }
+html.dark .recharts-polar-angle-axis-tick text { fill: #8E82B8 !important; }
+html.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #2C2447 !important;
+  border-color: #443A68 !important;
+  color: #F3F0FC !important;
+}
+html.dark .recharts-pie path { stroke: #211B34 !important; }
+
+/* --- Sidebar --- */
+html.dark .sidebar-panel {
+  background-color: #1B1530 !important;
+  border-color: #2C2547 !important;
+}
+html.dark .sidebar-panel .border-purple-50 { border-color: #2C2547 !important; }
+html.dark .sidebar-panel .border-purple-100 { border-color: #372F55 !important; }
+html.dark .sidebar-panel .text-gray-700 { color: #D9D1F0 !important; }
+html.dark .sidebar-panel .text-gray-600 { color: #B8ADD9 !important; }
+html.dark .sidebar-panel .text-gray-400 { color: #8E82B8 !important; }
+html.dark .sidebar-panel .text-gray-800 { color: #F3F0FC !important; }
+html.dark .sidebar-panel .bg-white { background-color: #272040 !important; }
+html.dark .sidebar-panel .bg-lavender-50 { background-color: #241D3C !important; }
+html.dark .sidebar-panel .bg-lavender-100 { background-color: #2C2447 !important; }
+html.dark .sidebar-panel .bg-violet-50 { background-color: #2E2452 !important; }
+html.dark .sidebar-panel .text-violet-700 { color: #D5C8FC !important; }
+html.dark .sidebar-panel .hover\:bg-lavender-50:hover { background-color: #272040 !important; }
+html.dark .sidebar-panel .hover\:bg-red-50:hover { background-color: #391722 !important; }
+html.dark .sidebar-panel .hover\:text-violet-600:hover { color: #C4B5FD !important; }
+html.dark .sidebar-panel .hover\:text-red-500:hover { color: #F58EA4 !important; }
+
+/* --- Scrollbar --- */
+html.dark ::-webkit-scrollbar-track { background: #1B1530; }
+html.dark ::-webkit-scrollbar-thumb { background: #4A3D7A; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #A78BFA; }
