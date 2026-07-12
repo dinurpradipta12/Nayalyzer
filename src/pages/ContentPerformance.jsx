@@ -6,6 +6,7 @@ import ContentTable from '../components/ContentTable';
 import ChartCard from '../components/ui/ChartCard';
 import { contentData as mockContentData } from '../data/mockData';
 import { useSocialData } from '../hooks/useSocialData';
+import { SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { ContentSkeleton } from '../components/ui/Skeleton';
 
@@ -606,10 +607,10 @@ export default function ContentPerformance() {
   const { activeWorkspace } = useWorkspace();
   const { contents: realContents, metrics, syncing, loading, reload } = useSocialData(activeWorkspace?.id);
 
-  // Use real data if available, else mock
+  // Use real data if available. Mock hanya di demo mode (tanpa backend).
   const contentData = useMemo(() => {
     if (realContents.length > 0) return normalizeRealContent(realContents);
-    return mockContentData;
+    return SUPABASE_ENABLED ? [] : mockContentData;
   }, [realContents]);
 
   const hasRealData = realContents.length > 0;

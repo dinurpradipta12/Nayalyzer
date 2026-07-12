@@ -133,25 +133,13 @@ export default function Settings() {
         {/* Competitor Accounts */}
         <Card>
           <SectionTitle icon={Users} title="Competitor Accounts" desc="Akun kompetitor yang sedang dipantau." />
-          <div className="space-y-2">
-            {[
-              { name: 'Studio Kreatif Bali', platform: 'Instagram', username: '@studiokreatifbali' },
-              { name: 'Desain Kita ID', platform: 'TikTok', username: '@desainkitaid' },
-              { name: 'Brand Builder Co', platform: 'Instagram', username: '@brandbuildco' },
-              { name: 'Kreasi Visual Studio', platform: 'Threads', username: '@kreasivisual' },
-            ].map(c => (
-              <div key={c.username} className="flex items-center justify-between p-3 bg-lavender-50 rounded-xl text-sm">
-                <div>
-                  <p className="font-semibold text-gray-700">{c.name}</p>
-                  <p className="text-xs text-gray-400">{c.platform} · {c.username}</p>
-                </div>
-                <button className="text-xs text-red-400 hover:text-red-600 font-medium">Hapus</button>
-              </div>
-            ))}
+          <div className="text-center py-6">
+            <p className="text-sm text-gray-400 mb-3">Kelola kompetitor di halaman Competitor Intelligence.</p>
+            <a href="/competitor-intelligence"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-violet-300 text-sm text-violet-600 font-medium hover:bg-violet-50 transition-colors">
+              <Users size={14} /> Buka Competitor Intelligence
+            </a>
           </div>
-          <button className="mt-3 w-full py-2.5 rounded-xl border border-dashed border-violet-300 text-sm text-violet-600 font-medium hover:bg-violet-50 transition-colors">
-            + Tambah Kompetitor
-          </button>
         </Card>
 
         {/* AI Settings */}

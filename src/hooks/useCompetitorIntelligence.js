@@ -209,7 +209,8 @@ export function useCompetitorIntelligence(workspaceId) {
         });
       });
 
-      setCompetitors(mapped.length ? mapped : DEMO_COMPETITORS);
+      // User asli dengan workspace kosong → tampilkan kosong, BUKAN data demo
+      setCompetitors(mapped);
       setContents(contMap);
 
       const ins = {};

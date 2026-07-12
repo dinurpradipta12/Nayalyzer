@@ -12,6 +12,7 @@ import ChartCard from '../components/ui/ChartCard';
 import PlatformBadge from '../components/ui/PlatformBadge';
 import { followerGrowthTrend, engagementTrend, reachTrend, contentData, accountData } from '../data/mockData';
 import { useSocialData } from '../hooks/useSocialData';
+import { SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { DashboardSkeleton } from '../components/ui/Skeleton';
 
@@ -55,13 +56,14 @@ function filterByDate(rows, startStr, endStr) {
 }
 
 // ── KPI computation ────────────────────────────────────────────
-function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endStr) {
+function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endStr, demo) {
   const keys = platformFilter === 'Semua' ? PLATFORM_KEYS : [platformFilter.toLowerCase()];
 
   const perPlatform = {};
   PLATFORM_KEYS.forEach(k => {
     const acc  = accounts[k];
-    const mock = accountData[k] ?? {};
+    // mock hanya dipakai di demo mode (tanpa backend) — user asli lihat data nyata / kosong
+    const mock = demo ? (accountData[k] ?? {}) : {};
     const rows = filterByDate(metrics[k], startStr, endStr);
     const latest = getLatestMetric(rows);
 
@@ -96,7 +98,7 @@ function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endS
     ? +(erValues.reduce((a, b) => a + b, 0) / erValues.length).toFixed(2)
     : 0;
 
-  let bestPlatform = 'TikTok', bestER = 0;
+  let bestPlatform = '–', bestER = 0;
   PLATFORM_KEYS.forEach(k => {
     const er = perPlatform[k].er ?? 0;
     if (er > bestER) { bestER = er; bestPlatform = k.charAt(0).toUpperCase() + k.slice(1); }
@@ -164,12 +166,12 @@ function buildMonthlyChart(metrics, startStr, endStr) {
 }
 
 // ── Audience card ──────────────────────────────────────────────
-function AudienceCard({ platformKey, account, perPlatformData, isActive, onClick }) {
-  const mock = accountData[platformKey] ?? {};
+function AudienceCard({ platformKey, account, perPlatformData, isActive, onClick, demo }) {
+  const mock = demo ? (accountData[platformKey] ?? {}) : {};
   const { followers, reach, er } = perPlatformData;
   const username = account
     ? `@${account.account_name || account.username || ''}`
-    : mock.username;
+    : (mock.username || null);
 
   return (
     <button onClick={onClick}
@@ -291,30 +293,31 @@ export default function Dashboard() {
   const { activeWorkspace } = useWorkspace();
   const { accounts, metrics, contents, syncing, loading, reload } = useSocialData(activeWorkspace?.id);
 
-  const hasRealData = Object.keys(accounts).length > 0;
+  // Demo mode = tanpa backend. User asli (backend aktif) tidak pernah lihat mock.
+  const demo = !SUPABASE_ENABLED;
   const { startStr, endStr } = useMemo(
     () => getDateBounds(dateFilter.preset, dateFilter.customStart, dateFilter.customEnd),
     [dateFilter]
   );
 
   const kpi = useMemo(
-    () => computeKPIs(accounts, metrics, contents, activePlatform, startStr, endStr),
-    [accounts, metrics, contents, activePlatform, startStr, endStr]
+    () => computeKPIs(accounts, metrics, contents, activePlatform, startStr, endStr, demo),
+    [accounts, metrics, contents, activePlatform, startStr, endStr, demo]
   );
 
   const chartKeys = activePlatform === 'Semua' ? PLATFORM_KEYS : [activePlatform.toLowerCase()];
   const realTrend = useMemo(() => buildMonthlyChart(metrics, startStr, endStr), [metrics, startStr, endStr]);
 
-  const followerData = realTrend.length ? realTrend : followerGrowthTrend;
+  const followerData = realTrend.length ? realTrend : (demo ? followerGrowthTrend : []);
   const erData = realTrend.length
     ? realTrend.map(r => ({ month: r.month, instagram: r.instagram_er, tiktok: r.tiktok_er, threads: r.threads_er }))
-    : engagementTrend;
+    : (demo ? engagementTrend : []);
   const reachData = realTrend.length
     ? realTrend.map(r => ({ month: r.month, instagram: r.instagram_reach, tiktok: r.tiktok_reach, threads: r.threads_reach }))
-    : reachTrend;
+    : (demo ? reachTrend : []);
 
   const topContent = useMemo(() => {
-    const list = contents.length ? contents : contentData;
+    const list = contents.length ? contents : (demo ? contentData : []);
     const filtered = activePlatform === 'Semua' ? list : list.filter(c => c.platform?.toLowerCase() === activePlatform.toLowerCase());
     return (filtered.length ? filtered : list)
       .map(c => {
@@ -333,7 +336,7 @@ export default function Dashboard() {
       })
       .sort((a, b) => b.performanceScore - a.performanceScore)
       .slice(0, 5);
-  }, [contents, activePlatform]);
+  }, [contents, activePlatform, demo]);
 
   const showBreakdown = activePlatform === 'Semua';
 
@@ -408,6 +411,7 @@ export default function Dashboard() {
               <AudienceCard key={k} platformKey={k}
                 account={accounts[k]}
                 perPlatformData={kpi.perPlatform[k]}
+                demo={demo}
                 isActive={activePlatform === (k.charAt(0).toUpperCase() + k.slice(1))}
                 onClick={() => setActivePlatform(k.charAt(0).toUpperCase() + k.slice(1))} />
             ))}

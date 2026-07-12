@@ -3,11 +3,12 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-import { Sparkles, Clock, Calendar, Layout, TrendingUp, RefreshCw, Users } from 'lucide-react';
+import { Sparkles, Clock, Calendar, Layout, TrendingUp, RefreshCw, Users, BarChart2 } from 'lucide-react';
 import ChartCard from '../components/ui/ChartCard';
 import PlatformBadge from '../components/ui/PlatformBadge';
 import { accountData } from '../data/mockData';
 import { useSocialData } from '../hooks/useSocialData';
+import { SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { AnalyticsSkeleton } from '../components/ui/Skeleton';
 
@@ -361,11 +362,14 @@ export default function AccountAnalytics() {
   const { activeWorkspace } = useWorkspace();
   const { accounts, contents, metrics, syncing, loading, reload } = useSocialData(activeWorkspace?.id);
 
+  const demo = !SUPABASE_ENABLED;
+
   // Merge real data into mock for the active platform
   const data = useMemo(() => {
     const mock = accountData[activeTab.toLowerCase()];
     const real = accounts[activeTab.toLowerCase()];
-    if (!real) return mock;
+    // User asli belum connect → null (empty state), bukan mock. Demo mode → mock.
+    if (!real) return demo ? mock : null;
 
     const platformKey = activeTab.toLowerCase();
     const platformContents = contents.filter(c => c.platform === activeTab);
@@ -418,7 +422,7 @@ export default function AccountAnalytics() {
       totalInteractions,
       demographics:     real.demographics ?? null,
     };
-  }, [activeTab, accounts, contents, metrics]);
+  }, [activeTab, accounts, contents, metrics, demo]);
 
   if (loading) return <AnalyticsSkeleton />;
 
@@ -448,7 +452,21 @@ export default function AccountAnalytics() {
         }
       </div>
 
-      <PlatformCard data={data} />
+      {data ? (
+        <PlatformCard data={data} />
+      ) : (
+        <div className="bg-white rounded-2xl border border-purple-50 shadow-card p-10 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-lavender-50 flex items-center justify-center mx-auto mb-4">
+            <BarChart2 size={24} className="text-violet-400" />
+          </div>
+          <p className="text-sm font-semibold text-gray-700 mb-1">Belum ada data {activeTab}</p>
+          <p className="text-xs text-gray-400 mb-4">Hubungkan akun {activeTab} kamu untuk melihat analitiknya di sini.</p>
+          <a href="/settings"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-400 text-white text-xs font-bold hover:shadow-purple transition-all">
+            Hubungkan Akun
+          </a>
+        </div>
+      )}
     </div>
   );
 }
