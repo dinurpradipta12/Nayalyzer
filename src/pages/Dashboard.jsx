@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import {
-  Users, TrendingUp, Eye, Activity, FileText, Star, RefreshCw,
+  Users, TrendingUp, Eye, Activity, RefreshCw,
   Wifi, WifiOff, Calendar, ChevronDown, X
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
@@ -100,16 +100,6 @@ function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endS
     ? +(erValues.reduce((a, b) => a + b, 0) / erValues.length).toFixed(2)
     : 0;
 
-  let bestPlatform = '–', bestER = 0;
-  platformKeys.forEach(k => {
-    const er = perPlatform[k].er ?? 0;
-    if (er > bestER) { bestER = er; bestPlatform = k.charAt(0).toUpperCase() + k.slice(1); }
-  });
-
-  const filteredContents = platformFilter === 'Semua'
-    ? contents
-    : contents.filter(c => c.platform?.toLowerCase() === platformFilter.toLowerCase());
-
   // breakdown arrays for Semua mode
   const mkBreakdown = (field, isPercent = false) =>
     platformKeys.map(k => ({
@@ -123,8 +113,6 @@ function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endS
 
   return {
     totalFollowers, totalReach, totalImpressions, avgER,
-    contentCount: filteredContents.length,
-    bestPlatform,
     perPlatform,
     breakdowns: {
       followers:   mkBreakdown('followers'),
@@ -409,14 +397,9 @@ export default function Dashboard() {
           breakdown={showBreakdown ? kpi.breakdowns.impressions : null} />
       </div>
 
-      {/* KPI row 2 + Audience Overview */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <StatCard title="Konten Dipublikasi" value={kpi.contentCount || 0}
-          icon={FileText} iconColor="bg-amber-100 text-amber-500" />
-        <StatCard title="Platform Terbaik" value={kpi.bestPlatform}
-          icon={Star} iconColor="bg-purple-100 text-purple-600" detail="Tertinggi ER & Growth" />
-
-        <div className="col-span-2 bg-white border border-purple-100 rounded-2xl p-3 shadow-card">
+      {/* Audience Overview */}
+      <div className="grid grid-cols-1 gap-3 lg:gap-4">
+        <div className="bg-white border border-purple-100 rounded-2xl p-3 shadow-card">
           <p className="text-xs font-semibold text-gray-500 mb-2.5 px-0.5">Audience per Platform</p>
           <div className="flex gap-2">
             {platformKeys.map(k => (
