@@ -30,8 +30,6 @@ function proxyImg(src) {
   if (!src) return null;
   return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/profile-analyzer?img=${encodeURIComponent(src)}`;
 }
-const REACH_COLORS = ['#8B5CF6', '#A855F7', '#C084FC', '#E9D5FF'];
-
 // ── Deterministic pseudo-random dari username ─────────────────
 function seededRand(seed) {
   let h = 0;
@@ -95,14 +93,6 @@ function deriveAnalytics(profile) {
     { name: 'Mass Followers', value: +mass.toFixed(1),        color: AUTH_COLORS.mass },
     { name: 'Influencers',    value: +influencer.toFixed(1),  color: AUTH_COLORS.influencer },
     { name: 'Suspicious',     value: +suspicious.toFixed(1),  color: AUTH_COLORS.suspicious },
-  ];
-
-  // Reachability
-  const reachability = [
-    { name: '≤500 following',     value: +(40 + rnd() * 20).toFixed(1) },
-    { name: '500–1000 following', value: +(20 + rnd() * 15).toFixed(1) },
-    { name: '1000–1500',          value: +(10 + rnd() * 10).toFixed(1) },
-    { name: '>1500 following',    value: +(5 + rnd() * 10).toFixed(1) },
   ];
 
   // Growth 6 bulan (mundur dari sekarang)
@@ -187,9 +177,14 @@ function deriveAnalytics(profile) {
       const hits = kws.reduce((s, kw) => s + (text.split(kw).length - 1), 0);
       return { label, score: hits };
     })
+    .filter(it => it.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 4)
-    .map((it, i) => ({ ...it, pct: +(30 - i * 1.5 - rnd() * 3).toFixed(1) }));
+    .slice(0, 4);
+  const interestTotal = interests.reduce((sum, it) => sum + it.score, 0);
+  const scoredInterests = interests.map(it => ({
+    ...it,
+    pct: interestTotal > 0 ? +((it.score / interestTotal) * 100).toFixed(1) : 0,
+  }));
 
   const totalEngagement = posts.reduce((s, p) => s + (p.likes ?? 0) + (p.comments ?? 0), 0);
   const totalLikes = posts.reduce((s, p) => s + (p.likes ?? 0), 0);
@@ -197,9 +192,9 @@ function deriveAnalytics(profile) {
 
   return {
     avgLikes, avgComments, avgViews, vtr, er, tier, avgEngagements,
-    authenticity, reachability, growth,
+    authenticity, growth,
     gender, age, locations,
-    topHashtags, topMentions, interests,
+    topHashtags, topMentions, interests: scoredInterests,
     totalEngagement, totalLikes, totalViews,
   };
 }
@@ -1818,40 +1813,19 @@ export default function Analyser() {
         </ChartCard>
       </div>
 
-      {/* Reachability + Interests */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Followers Reachability" subtitle="Distribusi jumlah following dari followers">
-          <div className="flex items-center">
-            <ResponsiveContainer width="55%" height={200}>
-              <PieChart>
-                <Pie data={a.reachability} dataKey="value" nameKey="name" outerRadius={80} startAngle={90} endAngle={-270}>
-                  {a.reachability.map((_, i) => <Cell key={i} fill={REACH_COLORS[i % REACH_COLORS.length]} />)}
-                </Pie>
-                <Tooltip formatter={v => `${v}%`} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex-1 space-y-2">
-              {a.reachability.map((s, i) => (
-                <div key={s.name} className="flex items-center gap-2 text-xs">
-                  <span className="w-3 h-3 rounded-sm" style={{ background: REACH_COLORS[i % REACH_COLORS.length] }} />
-                  <span className="text-gray-600">{s.name} — {s.value}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </ChartCard>
-
-        <ChartCard title="Top Interests" subtitle="Estimasi minat audiens dari konten">
+      {/* Interests */}
+      <div className="grid grid-cols-1 gap-4">
+        <ChartCard title="Top Interests" subtitle="Topik terdeteksi dari bio dan caption">
           <div className="space-y-3 mt-2">
-            {a.interests.length === 0 && <p className="text-xs text-gray-400 text-center py-6">Tidak cukup data konten</p>}
+            {a.interests.length === 0 && <p className="text-xs text-gray-400 text-center py-6">Belum ada keyword minat yang terdeteksi dari bio/caption.</p>}
             {a.interests.map(it => (
               <div key={it.label}>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="text-gray-700 font-medium">{it.label}</span>
-                  <span className="text-gray-500 font-semibold">{it.pct}%</span>
+                  <span className="text-gray-500 font-semibold">{it.score} keyword</span>
                 </div>
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-violet-500 to-purple-400 rounded-full" style={{ width: `${(it.pct / 35) * 100}%` }} />
+                  <div className="h-full bg-gradient-to-r from-violet-500 to-purple-400 rounded-full" style={{ width: `${it.pct}%` }} />
                 </div>
               </div>
             ))}
