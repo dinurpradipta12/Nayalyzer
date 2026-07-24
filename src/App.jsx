@@ -21,6 +21,7 @@ import CompetitorIntelligence   from './pages/CompetitorIntelligence';
 import Analyser                 from './pages/Analyser';
 import { FEATURE_BY_ROUTE } from './lib/permissions';
 import JoinWorkspace            from './pages/JoinWorkspace';
+import OAuthComplete            from './pages/OAuthComplete';
 
 // ── Full-screen loading spinner ─────────────────────────────────
 function LoadingScreen() {
@@ -131,6 +132,7 @@ function AppRoutes() {
 	      <Route path="/" element={<RedirectIfAuth><SignIn /></RedirectIfAuth>} />
 	      <Route path="/signup" element={<RedirectIfAuth><SignUp /></RedirectIfAuth>} />
 	      <Route path="/join-workspace" element={<JoinWorkspace />} />
+	      <Route path="/oauth-complete" element={<OAuthComplete />} />
 
       {/* Workspace creation (authenticated but no workspace yet) */}
       <Route path="/create-workspace" element={

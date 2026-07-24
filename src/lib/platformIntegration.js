@@ -30,42 +30,57 @@ export async function initiateOAuth(platform, workspaceId) {
 
   // Open popup
   return new Promise((resolve) => {
+    let settled = false;
+    let timer = null;
+    let timeout = null;
+    let popup = null;
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) window.clearInterval(timer);
+      if (timeout) window.clearTimeout(timeout);
+      window.removeEventListener('message', onMessage);
+      try {
+        if (popup && !popup.closed) popup.close();
+      } catch {}
+      resolve(result);
+    };
+
+    const onMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.source !== 'nayalyzer-oauth') return;
+      if (event.data.error) finish({ error: event.data.error });
+      else finish({ success: true, platform: event.data.connected || event.data.platform || platform });
+    };
+
     try {
       if (activeOAuthPopup && !activeOAuthPopup.closed) activeOAuthPopup.close();
     } catch {}
 
-    const popup = window.open(data.auth_url, `oauth_${platform}`, 'width=600,height=700,scrollbars=yes');
+    popup = window.open(data.auth_url, `oauth_${platform}`, 'width=600,height=700,scrollbars=yes');
     if (!popup) { resolve({ error: 'Popup diblokir browser. Izinkan popup untuk halaman ini.' }); return; }
     activeOAuthPopup = popup;
     popup.focus?.();
+    window.addEventListener('message', onMessage);
 
     // Poll for popup close or URL change
-    const timer = setInterval(() => {
+    timer = setInterval(() => {
       try {
         if (popup.closed) {
-          clearInterval(timer);
-          resolve({ cancelled: true });
+          finish({ cancelled: true });
         } else if (popup.location.origin === window.location.origin) {
           const url = new URL(popup.location.href);
-          popup.close();
-          clearInterval(timer);
           const connected = url.searchParams.get('connected');
           const error     = url.searchParams.get('error');
-          if (connected) resolve({ success: true, platform: connected });
-          else if (!error) resolve({ success: true, platform, needsReload: true });
-          else resolve({ error: error || 'Unknown error' });
+          if (connected) finish({ success: true, platform: connected });
+          else if (error) finish({ error });
         }
       } catch { /* cross-origin frame — still loading */ }
     }, 500);
 
     // Timeout after 5 minutes
-    setTimeout(() => {
-      clearInterval(timer);
-      try {
-        if (!popup.closed) popup.close();
-      } catch {}
-      resolve({ error: 'timeout' });
-    }, 300000);
+    timeout = setTimeout(() => finish({ error: 'timeout' }), 300000);
   });
 }
 

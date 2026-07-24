@@ -80,6 +80,11 @@ function buildInstagramOAuthUrl(state: string): string {
   return `https://www.instagram.com/oauth/authorize?${params}`;
 }
 
+function oauthCompleteUrl(params: Record<string, string>): string {
+  const search = new URLSearchParams(params);
+  return `${APP_URL}/oauth-complete?${search}`;
+}
+
 function buildThreadsOAuthUrl(state: string): string {
   const params = new URLSearchParams({
     client_id:     THREADS_APP_ID,
@@ -258,10 +263,10 @@ serve(async (req) => {
       const error    = url.searchParams.get('error');
 
       if (error) {
-        return redirect(`${APP_URL}/connected-accounts?error=${encodeURIComponent(error)}`);
+        return redirect(oauthCompleteUrl({ error }));
       }
       if (!code || !state) {
-        return redirect(`${APP_URL}/connected-accounts?error=missing_params`);
+        return redirect(oauthCompleteUrl({ error: 'missing_params' }));
       }
 
       // Decode platform + workspaceId from state
@@ -272,7 +277,7 @@ serve(async (req) => {
         statePlatform = parts[0];
         workspaceId   = parts[1];
       } catch {
-        return redirect(`${APP_URL}/connected-accounts?error=invalid_state`);
+        return redirect(oauthCompleteUrl({ error: 'invalid_state' }));
       }
 
       // Use platform from state (since redirect URI has no query param)
@@ -283,7 +288,7 @@ serve(async (req) => {
       if (resolvedPlatform === 'Instagram')    tokenData = await exchangeInstagramCode(code);
       else if (resolvedPlatform === 'Threads') tokenData = await exchangeThreadsCode(code);
       else if (resolvedPlatform === 'TikTok')  tokenData = await exchangeTikTokCode(code);
-      else return redirect(`${APP_URL}/connected-accounts?error=unknown_platform`);
+      else return redirect(oauthCompleteUrl({ error: 'unknown_platform' }));
 
       // Fetch profile
       let profile: Record<string, unknown> = {};
@@ -330,7 +335,7 @@ serve(async (req) => {
         updated_at:         new Date().toISOString(),
       });
 
-      return redirect(`${APP_URL}/connected-accounts?connected=${resolvedPlatform}`);
+      return redirect(oauthCompleteUrl({ connected: resolvedPlatform }));
     }
 
     // ── REFRESH ───────────────────────────────────────────────
@@ -437,7 +442,7 @@ serve(async (req) => {
     const msg = e instanceof Error ? e.message : String(e);
     console.error('[platform-oauth]', msg);
     if (action === 'callback') {
-      return redirect(`${APP_URL}/connected-accounts?error=${encodeURIComponent(msg)}`);
+      return redirect(oauthCompleteUrl({ error: msg }));
     }
     return json({ error: msg }, 500);
   }
