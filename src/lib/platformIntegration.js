@@ -45,13 +45,14 @@ export async function initiateOAuth(platform, workspaceId) {
         if (popup.closed) {
           clearInterval(timer);
           resolve({ cancelled: true });
-        } else if (popup.location.href.includes('/connected-accounts')) {
+        } else if (popup.location.origin === window.location.origin) {
           const url = new URL(popup.location.href);
           popup.close();
           clearInterval(timer);
           const connected = url.searchParams.get('connected');
           const error     = url.searchParams.get('error');
           if (connected) resolve({ success: true, platform: connected });
+          else if (!error) resolve({ success: true, platform, needsReload: true });
           else resolve({ error: error || 'Unknown error' });
         }
       } catch { /* cross-origin frame — still loading */ }

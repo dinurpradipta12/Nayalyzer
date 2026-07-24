@@ -593,6 +593,7 @@ export default function ConnectedAccounts({ embedded = false }) {
         showToast(`Error: ${result.error}`, 'error');
       } else if (result.success) {
         showToast(`${platform} berhasil terhubung!`, 'success');
+        if (result.needsReload) await new Promise(resolve => setTimeout(resolve, 800));
         reload();
       }
     } finally {
