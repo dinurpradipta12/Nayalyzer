@@ -57,6 +57,10 @@ function filterByDate(rows, startStr, endStr) {
   return (rows ?? []).filter(r => r.metric_date >= startStr && r.metric_date <= endStr);
 }
 
+function isFiniteMetric(value) {
+  return Number.isFinite(Number(value));
+}
+
 // ── KPI computation ────────────────────────────────────────────
 function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endStr, demo, platformKeys = PLATFORM_KEYS) {
   const keys = platformFilter === 'Semua' ? platformKeys : [platformFilter.toLowerCase()];
@@ -124,7 +128,7 @@ function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endS
 }
 
 // ── Monthly chart data ─────────────────────────────────────────
-function buildMonthlyChart(metrics, startStr, endStr, platformKeys = PLATFORM_KEYS) {
+function buildMonthlyChart(metrics, contents, startStr, endStr, platformKeys = PLATFORM_KEYS) {
   const byMonth = {};
   platformKeys.forEach(k => {
     const rows = filterByDate(metrics[k], startStr, endStr);
@@ -136,9 +140,26 @@ function buildMonthlyChart(metrics, startStr, endStr, platformKeys = PLATFORM_KE
       v[k]           = Math.max(v[k] ?? 0, r.followers ?? 0);
       v[k + '_r']    = (v[k + '_r'] ?? 0) + (r.reach ?? 0);
       if (!v[k + '_ea']) v[k + '_ea'] = [];
-      if (r.engagement_rate) v[k + '_ea'].push(r.engagement_rate);
+      if (isFiniteMetric(r.engagement_rate)) v[k + '_ea'].push(Number(r.engagement_rate));
     });
   });
+
+  (contents ?? []).forEach(content => {
+    const platform = content.platform?.toLowerCase();
+    if (!platformKeys.includes(platform)) return;
+    const metricsList = content.content_metrics?.length ? content.content_metrics : [content];
+    metricsList.forEach(metric => {
+      if (!isFiniteMetric(metric.engagement_rate)) return;
+      const date = metric.metric_date || content.published_at?.split('T')[0];
+      if (!date || date < startStr || date > endStr) return;
+      const m = date.slice(0, 7);
+      if (!byMonth[m]) byMonth[m] = {};
+      const v = byMonth[m];
+      if (!v[platform + '_cea']) v[platform + '_cea'] = [];
+      v[platform + '_cea'].push(Number(metric.engagement_rate));
+    });
+  });
+
   return Object.entries(byMonth)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([m, v]) => {
@@ -147,8 +168,10 @@ function buildMonthlyChart(metrics, startStr, endStr, platformKeys = PLATFORM_KE
         row[k]            = v[k] || null;
         row[k + '_reach'] = v[k + '_r'] || null;
         const ea          = v[k + '_ea'] ?? [];
-        row[k + '_er']    = ea.length
-          ? +(ea.reduce((a, b) => a + b, 0) / ea.length).toFixed(2)
+        const contentEa   = v[k + '_cea'] ?? [];
+        const erSource    = ea.length ? ea : contentEa;
+        row[k + '_er']    = erSource.length
+          ? +(erSource.reduce((a, b) => a + b, 0) / erSource.length).toFixed(2)
           : null;
       });
       return row;
@@ -299,7 +322,7 @@ export default function Dashboard() {
   );
 
   const chartKeys = activePlatform === 'Semua' ? platformKeys : [activePlatform.toLowerCase()];
-  const realTrend = useMemo(() => buildMonthlyChart(metrics, startStr, endStr, platformKeys), [metrics, startStr, endStr, platformKeys]);
+  const realTrend = useMemo(() => buildMonthlyChart(metrics, contents, startStr, endStr, platformKeys), [metrics, contents, startStr, endStr, platformKeys]);
 
   const followerData = realTrend.length ? realTrend : (demo ? followerGrowthTrend : []);
   const erData = realTrend.length
@@ -308,6 +331,7 @@ export default function Dashboard() {
   const reachData = realTrend.length
     ? realTrend.map(r => ({ month: r.month, instagram: r.instagram_reach, tiktok: r.tiktok_reach, threads: r.threads_reach }))
     : (demo ? reachTrend : []);
+  const hasERTrendData = erData.some(row => chartKeys.some(k => isFiniteMetric(row[k])));
 
   const topContent = useMemo(() => {
     const list = contents.length ? contents : (demo ? contentData : []);
@@ -445,30 +469,40 @@ export default function Dashboard() {
 
         <ChartCard title="Engagement Rate Trend"
           subtitle={`ER%${activePlatform !== 'Semua' ? ` · ${activePlatform}` : ' · semua platform'}`}>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={erData} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
-              <defs>
-                {PLATFORM_KEYS.map(k => (
-                  <linearGradient key={k} id={`erg-${k}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={COLORS[k]} stopOpacity={0.2} />
-                    <stop offset="95%" stopColor={COLORS[k]} stopOpacity={0} />
-                  </linearGradient>
+          {hasERTrendData ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={erData} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
+                <defs>
+                  {PLATFORM_KEYS.map(k => (
+                    <linearGradient key={k} id={`erg-${k}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS[k]} stopOpacity={0.2} />
+                      <stop offset="95%" stopColor={COLORS[k]} stopOpacity={0} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
+                  tickFormatter={v => `${v}%`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: '11px' }} />
+                {chartKeys.map(k => (
+                  <Area key={k} type="monotone" dataKey={k}
+                    name={k.charAt(0).toUpperCase() + k.slice(1)}
+                    stroke={COLORS[k]} fill={`url(#erg-${k})`} strokeWidth={2.5}
+                    dot={{ r: 3, fill: COLORS[k] }} connectNulls />
                 ))}
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
-                tickFormatter={v => `${v}%`} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ fontSize: '11px' }} />
-              {chartKeys.map(k => (
-                <Area key={k} type="monotone" dataKey={k}
-                  name={k.charAt(0).toUpperCase() + k.slice(1)}
-                  stroke={COLORS[k]} fill={`url(#erg-${k})`} strokeWidth={2.5}
-                  dot={{ r: 3, fill: COLORS[k] }} connectNulls />
-              ))}
-            </AreaChart>
-          </ResponsiveContainer>
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[220px] rounded-2xl border border-dashed border-purple-100 bg-lavender-50/40 flex flex-col items-center justify-center text-center px-6">
+              <Activity size={22} className="text-gray-300 mb-2" />
+              <p className="text-sm font-semibold text-gray-500">Belum ada data ER untuk periode ini</p>
+              <p className="text-xs text-gray-400 mt-1 max-w-sm">
+                Grafik akan muncul setelah account metrics atau content metrics memiliki engagement rate.
+              </p>
+            </div>
+          )}
         </ChartCard>
       </div>
 
