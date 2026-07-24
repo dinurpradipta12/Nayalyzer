@@ -43,6 +43,7 @@ function realDataDefaults(platform) {
     impressions: 0,
     engagementRate: 0,
     contentPublished: 0,
+    contentCountLabel: 'Total Konten',
     avgLikes: 0,
     avgComments: 0,
     avgShares: 0,
@@ -247,6 +248,7 @@ function MetricRow({ label, value, sub }) {
 
 function PlatformCard({ data }) {
   const color = PLATFORM_COLORS[data.platform];
+  const contentCountLabel = data.contentCountLabel || 'Konten Terbit';
   const radarData = [
     { subject: 'Followers', A: Math.min((data.followers / 150000) * 100, 100) },
     { subject: 'Engagement', A: Math.min((data.engagementRate / 10) * 100, 100) },
@@ -277,13 +279,13 @@ function PlatformCard({ data }) {
                 { label: 'Reach',           value: data.reach > 0 ? (data.reach >= 1000 ? (data.reach / 1000).toFixed(1) + 'K' : data.reach.toString()) : '–' },
                 { label: 'Views',           value: data.impressions > 0 ? (data.impressions >= 1000 ? (data.impressions / 1000).toFixed(1) + 'K' : data.impressions.toString()) : '–' },
                 { label: 'Engagement Rate', value: data.engagementRate + '%', highlight: true },
-                { label: 'Konten Terbit',   value: data.contentPublished },
+                { label: contentCountLabel, value: data.contentPublished },
               ]
             : [
                 { label: 'Views',           value: data.impressions > 0 ? (data.impressions >= 1000 ? (data.impressions / 1000).toFixed(1) + 'K' : data.impressions.toString()) : '–' },
                 { label: 'Total Interaksi', value: data.totalInteractions > 0 ? (data.totalInteractions >= 1000 ? (data.totalInteractions / 1000).toFixed(1) + 'K' : data.totalInteractions.toString()) : '–' },
                 { label: 'Engagement Rate', value: data.engagementRate + '%', highlight: true },
-                { label: 'Konten Terbit',   value: data.contentPublished },
+                { label: contentCountLabel, value: data.contentPublished },
               ]
           ).map(({ label, value, highlight }) => (
             <div key={label} className="bg-lavender-50 rounded-xl p-3 text-center">
@@ -480,7 +482,8 @@ export default function AccountAnalytics() {
       following:        real.following_count ?? base.following,
       followerGrowth,
       followerGrowthPercent,
-      contentPublished: platformContents.length,
+      contentPublished: Number.isFinite(real.media_count) ? real.media_count : 0,
+      contentCountLabel: 'Total Konten',
       avgLikes,
       avgComments,
       avgShares,

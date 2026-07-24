@@ -52,7 +52,14 @@ async function igFetch(path: string, token: string) {
 
 async function syncInstagramProfile(token: string, connId: string, supabase: ReturnType<typeof createClient>) {
   const profile = await igFetch('/me?fields=id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url,website', token);
-  return { provider_user_id: profile.id, username: profile.username, followers: profile.followers_count ?? 0, profile };
+  return {
+    provider_user_id: profile.id,
+    username: profile.username,
+    followers: profile.followers_count ?? 0,
+    following: profile.follows_count ?? 0,
+    media_count: profile.media_count ?? 0,
+    profile,
+  };
 }
 
 async function syncInstagramDemographics(token: string, accountId: string, supabase: ReturnType<typeof createClient>) {
@@ -261,7 +268,7 @@ async function syncInstagramInsights(token: string, accountId: string, workspace
 // Threads
 async function syncThreadsProfile(token: string) {
   // Try with followers_count first, fall back to basic fields if not permitted
-  const res = await fetch(`https://graph.threads.net/v1.0/me?fields=id,username,name,followers_count&access_token=${token}`);
+  const res = await fetch(`https://graph.threads.net/v1.0/me?fields=id,username,name,followers_count,threads_count&access_token=${token}`);
   const json = await res.json();
   if (json.error || json.followers_count == null) {
     // Fallback: try threads_insights endpoint for follower count
@@ -486,6 +493,8 @@ serve(async (req) => {
             followers_count: p.followers,
             username:        p.username ?? undefined,
             account_name:    p.profile?.name ?? p.username ?? undefined,
+            following_count: p.following ?? undefined,
+            media_count:     p.media_count ?? undefined,
             updated_at:      new Date().toISOString(),
           }).eq('id', accountId);
         }
@@ -518,6 +527,7 @@ serve(async (req) => {
               username: p.username ?? undefined,
               account_name: p.name ?? p.username ?? undefined,
               followers_count: p.followers_count ?? undefined,
+              media_count: p.threads_count ?? undefined,
               updated_at: new Date().toISOString(),
             }).eq('id', accountId);
           }
@@ -540,6 +550,8 @@ serve(async (req) => {
             username: p.display_name ?? undefined,
             account_name: p.display_name ?? undefined,
             followers_count: p.follower_count ?? 0,
+            following_count: p.following_count ?? 0,
+            media_count: p.video_count ?? 0,
             updated_at: new Date().toISOString(),
           }).eq('id', accountId);
           if (p.display_name) {

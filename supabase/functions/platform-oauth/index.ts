@@ -348,6 +348,7 @@ serve(async (req) => {
         username,
         account_name:       (profile.name || username) as string,
         followers_count:    (profile.followers_count || profile.follower_count || 0) as number,
+        media_count:        (profile.media_count || profile.video_count || 0) as number,
         connection_status:  'connected',
         updated_at:         new Date().toISOString(),
       }, { onConflict: 'workspace_id,platform,username' }).select('id').single();
@@ -448,6 +449,7 @@ serve(async (req) => {
         workspace_id: wid, platform,
         username, account_name: (profile.name || username) as string,
         followers_count: (profile.followers_count || 0) as number,
+        media_count: (profile.media_count || 0) as number,
         connection_status: 'connected',
         updated_at: new Date().toISOString(),
       }, { onConflict: 'workspace_id,platform,username' }).select('id').single();
