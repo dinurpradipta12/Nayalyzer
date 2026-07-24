@@ -116,14 +116,14 @@ interface TokenResult {
   scopes?: string[];
 }
 
-async function exchangeInstagramCode(code: string): Promise<TokenResult> {
+async function exchangeInstagramCode(code: string, redirectUri = CALLBACK_URI): Promise<TokenResult> {
   const body = new URLSearchParams({
     client_id: IG_APP_ID, client_secret: IG_APP_SECRET,
     grant_type: 'authorization_code',
-    redirect_uri: CALLBACK_URI,
+    redirect_uri: redirectUri,
     code,
   });
-  console.log('[IG token exchange] redirect_uri:', CALLBACK_URI, 'client_id:', IG_APP_ID);
+  console.log('[IG token exchange] redirect_uri:', redirectUri, 'client_id:', IG_APP_ID);
   const res  = await fetch('https://api.instagram.com/oauth/access_token', { method: 'POST', body });
   const json = await res.json();
   console.log('[IG token exchange] response:', JSON.stringify(json));
@@ -145,11 +145,11 @@ async function exchangeInstagramCode(code: string): Promise<TokenResult> {
   };
 }
 
-async function exchangeThreadsCode(code: string): Promise<TokenResult> {
+async function exchangeThreadsCode(code: string, redirectUri = CALLBACK_URI): Promise<TokenResult> {
   const body = new URLSearchParams({
     client_id: THREADS_APP_ID, client_secret: THREADS_APP_SECRET,
     grant_type: 'authorization_code',
-    redirect_uri: CALLBACK_URI,
+    redirect_uri: redirectUri,
     code,
   });
   const res  = await fetch('https://graph.threads.net/oauth/access_token', { method: 'POST', body });
@@ -158,14 +158,14 @@ async function exchangeThreadsCode(code: string): Promise<TokenResult> {
   return { access_token: json.access_token, expires_in: json.expires_in };
 }
 
-async function exchangeTikTokCode(code: string): Promise<TokenResult> {
+async function exchangeTikTokCode(code: string, redirectUri = CALLBACK_URI): Promise<TokenResult> {
   const res = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_key: TK_CLIENT_KEY, client_secret: TK_CLIENT_SECRET,
       grant_type: 'authorization_code',
-      redirect_uri: CALLBACK_URI,
+      redirect_uri: redirectUri,
       code,
     }),
   });
@@ -231,8 +231,14 @@ serve(async (req) => {
         return json({ error: 'workspace_id and platform required' }, 400);
       }
 
-      // State = base64(platform:workspace_id:timestamp)
-      const state = btoa(`${platform}:${workspaceId}:${Date.now()}`);
+      // Keep the exact redirect URI in state so the token exchange can reuse
+      // the same value Instagram saw in the authorization request.
+      const state = btoa(JSON.stringify({
+        platform,
+        workspace_id: workspaceId,
+        redirect_uri: CALLBACK_URI,
+        ts: Date.now(),
+      }));
 
       let authUrl: string;
       if (platform === 'Instagram')   authUrl = buildInstagramOAuthUrl(state);
@@ -272,10 +278,19 @@ serve(async (req) => {
       // Decode platform + workspaceId from state
       let workspaceId: string;
       let statePlatform: string;
+      let stateRedirectUri = CALLBACK_URI;
       try {
-        const parts = atob(state).split(':');
-        statePlatform = parts[0];
-        workspaceId   = parts[1];
+        const decoded = atob(state);
+        if (decoded.trim().startsWith('{')) {
+          const parsed = JSON.parse(decoded);
+          statePlatform = parsed.platform;
+          workspaceId = parsed.workspace_id;
+          stateRedirectUri = parsed.redirect_uri || CALLBACK_URI;
+        } else {
+          const parts = decoded.split(':');
+          statePlatform = parts[0];
+          workspaceId   = parts[1];
+        }
       } catch {
         return redirect(oauthCompleteUrl({ error: 'invalid_state' }));
       }
@@ -285,9 +300,9 @@ serve(async (req) => {
 
       // Exchange code for token
       let tokenData: TokenResult;
-      if (resolvedPlatform === 'Instagram')    tokenData = await exchangeInstagramCode(code);
-      else if (resolvedPlatform === 'Threads') tokenData = await exchangeThreadsCode(code);
-      else if (resolvedPlatform === 'TikTok')  tokenData = await exchangeTikTokCode(code);
+      if (resolvedPlatform === 'Instagram')    tokenData = await exchangeInstagramCode(code, stateRedirectUri);
+      else if (resolvedPlatform === 'Threads') tokenData = await exchangeThreadsCode(code, stateRedirectUri);
+      else if (resolvedPlatform === 'TikTok')  tokenData = await exchangeTikTokCode(code, stateRedirectUri);
       else return redirect(oauthCompleteUrl({ error: 'unknown_platform' }));
 
       // Fetch profile
