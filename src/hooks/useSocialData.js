@@ -4,6 +4,7 @@ import { withTimeout } from '../lib/async';
 
 const CACHE_TTL_MS   = 6 * 60 * 60 * 1000; // 6 jam — ketika cache kadaluarsa, sync lagi
 const STALE_SYNC_MS  = 60 * 60 * 1000;      // sync jika data > 1 jam dari server
+const CACHE_VERSION  = 2;
 
 function cacheKey(wsId) { return `naya_social_${wsId}`; }
 
@@ -12,6 +13,7 @@ function readCache(wsId) {
     const raw = localStorage.getItem(cacheKey(wsId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
+    if (parsed.version !== CACHE_VERSION) return null;
     if (Date.now() - parsed.savedAt > CACHE_TTL_MS) return null; // expired
     return parsed;
   } catch { return null; }
@@ -19,7 +21,7 @@ function readCache(wsId) {
 
 function writeCache(wsId, data) {
   try {
-    localStorage.setItem(cacheKey(wsId), JSON.stringify({ ...data, savedAt: Date.now() }));
+    localStorage.setItem(cacheKey(wsId), JSON.stringify({ ...data, version: CACHE_VERSION, savedAt: Date.now() }));
   } catch {}
 }
 
@@ -61,7 +63,7 @@ async function fetchFromDB(workspaceId) {
   const [connResult, accountResult, metricResult, contentResult] = await withTimeout(Promise.all([
     supabase
     .from('platform_connections')
-    .select('id, platform, provider_username, connection_status, last_synced_at')
+    .select('id, platform, social_account_id, provider_username, connection_status, last_synced_at')
     .eq('workspace_id', workspaceId)
       .eq('connection_status', 'connected'),
     supabase
@@ -78,6 +80,7 @@ async function fetchFromDB(workspaceId) {
       .from('contents')
       .select(`
         id, platform, content_type, caption, content_url, thumbnail_url, published_at,
+        social_account_id,
         content_metrics (
           likes, comments, shares, views, saves, reach, impressions, avg_watch_time, engagement_rate, engagement_count, metric_date
         )
@@ -96,7 +99,12 @@ async function fetchFromDB(workspaceId) {
       && (connectedAccountIds.has(account.id) || connectedPlatforms.has(platformKey));
   });
   const metricRows = metricResult.data || [];
-  const contentRows = (contentResult.data || []).filter(content => connectedPlatforms.has(content.platform?.toLowerCase()));
+  const contentRows = (contentResult.data || []).filter(content => {
+    const platformKey = content.platform?.toLowerCase();
+    return connectedAccountIds.size > 0
+      ? connectedAccountIds.has(content.social_account_id)
+      : connectedPlatforms.has(platformKey);
+  });
 
   const accounts = {};
   for (const a of socialAccts) {

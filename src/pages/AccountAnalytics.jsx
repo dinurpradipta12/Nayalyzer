@@ -17,6 +17,47 @@ const PLATFORM_COLORS = { Instagram: '#E040FB', TikTok: '#26C6DA', Threads: '#78
 
 const tabs = ['Instagram', 'TikTok', 'Threads'];
 
+const EMPTY_ACTIVITY = [
+  { hour: '06', value: 0 },
+  { hour: '09', value: 0 },
+  { hour: '12', value: 0 },
+  { hour: '13', value: 0 },
+  { hour: '15', value: 0 },
+  { hour: '18', value: 0 },
+  { hour: '19', value: 0 },
+  { hour: '21', value: 0 },
+  { hour: '22', value: 0 },
+  { hour: '23', value: 0 },
+];
+
+function realDataDefaults(platform) {
+  return {
+    platform,
+    username: '-',
+    accountName: '-',
+    followers: 0,
+    following: 0,
+    followerGrowth: 0,
+    followerGrowthPercent: 0,
+    reach: 0,
+    impressions: 0,
+    engagementRate: 0,
+    contentPublished: 0,
+    avgLikes: 0,
+    avgComments: 0,
+    avgShares: 0,
+    avgSaves: 0,
+    totalInteractions: 0,
+    audienceActivity: EMPTY_ACTIVITY,
+    bestPostingDay: 'Belum ada data',
+    bestPostingTime: 'Belum ada data',
+    bestContentFormat: 'Belum ada data',
+    topContentPillars: ['Belum ada data'],
+    demographics: null,
+    aiInsight: 'Data akun sudah terhubung, tapi metrik historis/konten belum tersedia. Jalankan sync atau import data konten untuk mulai membaca performa.',
+  };
+}
+
 const GENDER_COLORS = { F: '#EC4899', M: '#8B5CF6', U: '#9ca3af', female: '#EC4899', male: '#8B5CF6' };
 const GENDER_LABELS = { F: 'Perempuan', M: 'Laki-laki', U: 'Lainnya', female: 'Perempuan', male: 'Laki-laki' };
 
@@ -373,7 +414,8 @@ export default function AccountAnalytics() {
     }
   }, [activeTab, visibleTabs]);
 
-  // Merge real data into mock for the active platform
+  // Merge real data. Mock hanya untuk demo mode; user production tidak boleh
+  // melihat angka template ketika akun real belum punya metrik.
   const data = useMemo(() => {
     const mock = accountData[activeTab.toLowerCase()];
     const real = accounts[activeTab.toLowerCase()];
@@ -381,19 +423,26 @@ export default function AccountAnalytics() {
     if (!real) return demo ? mock : null;
 
     const platformKey = activeTab.toLowerCase();
-    const platformContents = contents.filter(c => c.platform === activeTab);
+    const base = demo ? mock : realDataDefaults(activeTab);
+    const platformContents = contents.filter(c => {
+      if (c.platform !== activeTab) return false;
+      return c.social_account_id ? c.social_account_id === real.id : true;
+    });
     const hasContent = platformContents.length > 0;
 
     // Avg content metrics
     const avgLikes = hasContent
       ? Math.round(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.likes ?? 0), 0) / platformContents.length)
-      : mock.avgLikes;
+      : 0;
     const avgComments = hasContent
       ? Math.round(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.comments ?? 0), 0) / platformContents.length)
-      : mock.avgComments;
+      : 0;
     const avgShares = hasContent
       ? Math.round(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.shares ?? 0), 0) / platformContents.length)
-      : mock.avgShares;
+      : 0;
+    const avgSaves = hasContent
+      ? Math.round(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.saves ?? 0), 0) / platformContents.length)
+      : 0;
 
     // Account-level metrics from account_metrics table (last 30 days sum)
     const acctMetrics = metrics[platformKey] ?? [];
@@ -411,20 +460,31 @@ export default function AccountAnalytics() {
     }, 0);
     const totalInteractions = acctTotalInteractions > 0 ? acctTotalInteractions : contentTotalInteractions;
 
-    // ER from content metrics if available
+    // ER from real account/content metrics only
+    const acctErValues = acctMetrics.map(r => r.engagement_rate).filter(v => v != null);
     const engagementRate = hasContent
       ? +(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.engagement_rate ?? 0), 0) / platformContents.length).toFixed(1)
-      : (hasAcctMetrics ? mock.engagementRate : 0);
+      : (acctErValues.length ? +(acctErValues.reduce((a, b) => a + b, 0) / acctErValues.length).toFixed(1) : 0);
+
+    const sortedMetrics = [...acctMetrics].sort((a, b) => a.metric_date?.localeCompare(b.metric_date));
+    const firstFollowers = sortedMetrics[0]?.followers ?? 0;
+    const latestFollowers = sortedMetrics.at(-1)?.followers ?? real.followers_count ?? 0;
+    const followerGrowth = firstFollowers > 0 ? latestFollowers - firstFollowers : 0;
+    const followerGrowthPercent = firstFollowers > 0 ? +((followerGrowth / firstFollowers) * 100).toFixed(2) : 0;
 
     return {
-      ...mock,
-      username:         real.username ? `@${real.username}` : (real.account_name ? `@${real.account_name}` : mock.username),
-      accountName:      real.account_name ?? mock.accountName,
-      followers:        real.followers_count ?? mock.followers,
-      contentPublished: platformContents.length || mock.contentPublished,
+      ...base,
+      username:         real.username ? `@${real.username}` : (real.account_name ? `@${real.account_name}` : base.username),
+      accountName:      real.account_name ?? base.accountName,
+      followers:        real.followers_count ?? latestFollowers,
+      following:        real.following_count ?? base.following,
+      followerGrowth,
+      followerGrowthPercent,
+      contentPublished: platformContents.length,
       avgLikes,
       avgComments,
       avgShares,
+      avgSaves,
       reach:            hasAcctMetrics ? totalReach : 0,
       impressions:      totalImpressions > 0 ? totalImpressions : totalContentViews,
       engagementRate,
