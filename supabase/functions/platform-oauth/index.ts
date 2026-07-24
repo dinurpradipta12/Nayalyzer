@@ -75,6 +75,7 @@ function buildInstagramOAuthUrl(state: string): string {
     scope:         'instagram_business_basic,instagram_business_content_publish',
     response_type: 'code',
     state,
+    enable_fb_login: '0',
   });
   return `https://www.instagram.com/oauth/authorize?${params}`;
 }
