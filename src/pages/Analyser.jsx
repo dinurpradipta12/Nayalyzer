@@ -164,13 +164,13 @@ function deriveAnalytics(profile) {
   const topMentions = Object.entries(mentions).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([t]) => t);
 
   // Interests (estimasi dari bio + caption keyword sederhana)
-  const text = (profile.biography + ' ' + posts.map(p => p.caption).join(' ')).toLowerCase();
+  const text = `${profile.username || ''} ${profile.full_name || ''} ${profile.biography || ''} ${posts.map(p => p.caption || '').join(' ')}`.toLowerCase();
   const interestMap = [
     ['Friends, Family & Relationships', ['keluarga', 'family', 'teman', 'friend', 'love']],
     ['Business & Careers',              ['bisnis', 'business', 'karir', 'career', 'kerja', 'uang', 'income', 'juta']],
     ['Clothes, Shoes & Accessories',    ['fashion', 'outfit', 'style', 'ootd']],
     ['Travel, Tourism & Aviation',      ['travel', 'trip', 'bali', 'jalan', 'liburan', 'wisata']],
-    ['Restaurants, Food & Grocery',     ['food', 'makan', 'kuliner', 'cafe', 'resto']],
+    ['Restaurants, Food & Grocery',     ['food', 'makan', 'kuliner', 'cafe', 'kafe', 'resto', 'kopi', 'coffee', 'latte', 'espresso', 'minuman']],
     ['Beauty & Cosmetics',              ['beauty', 'skincare', 'makeup']],
     ['Education & Learning',            ['belajar', 'edukasi', 'tips', 'kelas', 'materi', 'ilmu']],
   ];
@@ -314,39 +314,128 @@ function getBrandVerdict(score) {
   return { label: 'Brand buruk', summary: 'Brand belum siap untuk campaign besar. Rapikan positioning dan kualitas konten dulu.', color: 'text-red-700 bg-red-50 border-red-100' };
 }
 
+function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function clampScore(value) {
+  return Math.max(0, Math.min(100, Math.round(safeNumber(value))));
+}
+
+function countKeywordHits(text, keys) {
+  return keys.reduce((sum, key) => sum + (text.split(key).length - 1), 0);
+}
+
 function deriveBrandAnalysis(profile, analytics) {
   const posts = profile.recent_posts ?? [];
   const captions = posts.map(post => post.caption || '').join(' ');
-  const text = `${profile.full_name || ''} ${profile.biography || ''} ${captions}`.toLowerCase();
-  const rnd = seededRand(`${profile.username}-brand-mode`);
+  const username = (profile.username || '').toLowerCase();
+  const text = `${username} ${profile.full_name || ''} ${profile.biography || ''} ${captions}`.toLowerCase();
+  const followers = safeNumber(profile.followers);
+  const following = safeNumber(profile.following);
+  const er = safeNumber(analytics.er);
+  const vtr = safeNumber(analytics.vtr);
+  const avgEngagements = safeNumber(analytics.avgEngagements);
+  const topHashtags = analytics.topHashtags || [];
+  const topMentions = analytics.topMentions || [];
+  const interests = analytics.interests || [];
 
   const nicheRules = [
-    { niche: 'Education / Knowledge Brand', keys: ['belajar', 'edukasi', 'kelas', 'mentor', 'tips', 'training', 'course', 'ilmu', 'strategi', 'socmed'], competitors: ['@revou_id', '@myskill.id', '@dibimbing.id', '@skillacademy'] },
-    { niche: 'Beauty / Personal Care', keys: ['beauty', 'skincare', 'makeup', 'glow', 'serum', 'salon'], competitors: ['@somethincofficial', '@avoskinbeauty', '@wardahbeauty', '@scarlett_whitening'] },
-    { niche: 'Fashion / Lifestyle', keys: ['fashion', 'outfit', 'ootd', 'style', 'wear', 'lifestyle'], competitors: ['@erigostore', '@thenblank', '@buttonscarves', '@wearingklamby'] },
-    { niche: 'Food / Cafe / FMCG', keys: ['food', 'makan', 'kuliner', 'cafe', 'resto', 'coffee', 'snack'], competitors: ['@kopikenangan.id', '@fore.coffee', '@janjiw', '@esteh.indonesia'] },
-    { niche: 'Travel / Hospitality', keys: ['travel', 'trip', 'hotel', 'liburan', 'wisata', 'bali', 'staycation'], competitors: ['@traveloka', '@tiketcom', '@boboboxadventure', '@indtravel'] },
-    { niche: 'Business / Productivity', keys: ['bisnis', 'business', 'karir', 'produktif', 'finance', 'uang', 'growth', 'agency'], competitors: ['@dailysocial.id', '@techinasia_id', '@glintsid', '@greatmind.id'] },
+    {
+      niche: 'Coffee / Cafe / F&B Brand',
+      keys: ['kopi', 'coffee', 'cafe', 'kafe', 'latte', 'espresso', 'americano', 'barista', 'minuman', 'fnb', 'f&b', 'grabfood', 'gofood', 'kenangan'],
+      competitors: ['@fore.coffee', '@tomoro.coffee', '@janjiw', '@pointcoffeeid', '@starbucksindonesia'],
+      partnerTypes: ['Food reviewer lokal', 'Lifestyle micro creator', 'Creator kantor/kampus', 'Community partner event offline'],
+    },
+    {
+      niche: 'Education / Knowledge Brand',
+      keys: ['belajar', 'edukasi', 'kelas', 'mentor', 'tips', 'training', 'course', 'ilmu', 'strategi', 'socmed', 'bootcamp'],
+      competitors: ['@revou_id', '@myskill.id', '@dibimbing.id', '@skillacademy'],
+      partnerTypes: ['Expert creator', 'Career mentor', 'Education micro KOL', 'Community learning partner'],
+    },
+    {
+      niche: 'Beauty / Personal Care',
+      keys: ['beauty', 'skincare', 'makeup', 'glow', 'serum', 'salon', 'skin', 'kosmetik'],
+      competitors: ['@somethincofficial', '@avoskinbeauty', '@wardahbeauty', '@scarlett_whitening'],
+      partnerTypes: ['Beauty reviewer', 'Dermatology educator', 'Lifestyle creator', 'UGC creator'],
+    },
+    {
+      niche: 'Fashion / Lifestyle',
+      keys: ['fashion', 'outfit', 'ootd', 'style', 'wear', 'lifestyle', 'clothes', 'shoes'],
+      competitors: ['@erigostore', '@thenblank', '@buttonscarves', '@wearingklamby'],
+      partnerTypes: ['Fashion stylist', 'Lifestyle creator', 'Campus creator', 'UGC lookbook creator'],
+    },
+    {
+      niche: 'Travel / Hospitality',
+      keys: ['travel', 'trip', 'hotel', 'liburan', 'wisata', 'bali', 'staycation', 'tour'],
+      competitors: ['@traveloka', '@tiketcom', '@boboboxadventure', '@indtravel'],
+      partnerTypes: ['Travel creator', 'Local guide', 'Family travel creator', 'Experience reviewer'],
+    },
+    {
+      niche: 'Business / Productivity',
+      keys: ['bisnis', 'business', 'karir', 'produktif', 'finance', 'uang', 'growth', 'agency', 'startup'],
+      competitors: ['@dailysocial.id', '@techinasia_id', '@glintsid', '@greatmind.id'],
+      partnerTypes: ['Founder creator', 'Career creator', 'Productivity educator', 'B2B community partner'],
+    },
   ];
 
   const nicheScores = nicheRules
     .map(rule => ({
       ...rule,
-      hits: rule.keys.reduce((sum, key) => sum + (text.split(key).length - 1), 0),
+      hits: countKeywordHits(text, rule.keys),
     }))
     .sort((a, b) => b.hits - a.hits);
-  const primaryNiche = nicheScores[0]?.hits > 0 ? nicheScores[0] : nicheRules[0];
+  const primaryNiche = nicheScores[0]?.hits > 0
+    ? nicheScores[0]
+    : {
+        niche: 'General Brand',
+        hits: 0,
+        competitors: ['@benchmark.kategori', '@brand.serupa', '@market.leader'],
+        partnerTypes: ['Micro KOL niche', 'UGC creator', 'Community partner'],
+      };
 
-  const hashtagCount = analytics.topHashtags.length;
-  const mentionCount = analytics.topMentions.length;
+  const hashtagCount = topHashtags.length;
+  const mentionCount = topMentions.length;
   const avgCaptionLength = posts.length
     ? Math.round(posts.reduce((sum, post) => sum + (post.caption?.length ?? 0), 0) / posts.length)
     : 0;
-  const contentScore = Math.min(100, posts.length * 7 + Math.min(30, hashtagCount * 3) + (avgCaptionLength > 80 ? 18 : 8));
-  const engagementScore = Math.min(100, (analytics.er / 5) * 70 + (analytics.vtr / 12) * 30);
-  const authorityScore = Math.min(100, (profile.is_verified ? 18 : 0) + Math.min(35, Math.log10(Math.max(10, profile.followers)) * 9) + mentionCount * 6 + primaryNiche.hits * 4);
-  const clarityScore = Math.min(100, (profile.biography?.length > 45 ? 35 : 15) + (primaryNiche.hits > 0 ? 35 : 15) + Math.min(30, hashtagCount * 4));
-  const brandScore = Math.round(contentScore * 0.25 + engagementScore * 0.3 + authorityScore * 0.2 + clarityScore * 0.25);
+  const postsScore = Math.min(32, posts.length * 4);
+  const captionScore = avgCaptionLength >= 120 ? 24 : avgCaptionLength >= 70 ? 18 : avgCaptionLength >= 35 ? 10 : 4;
+  const topicScore = Math.min(24, hashtagCount * 4 + Math.min(8, primaryNiche.hits * 2));
+  const ctaScore = /order|beli|klik|link|daftar|komen|comment|dm|coba|visit|download|subscribe/.test(text) ? 12 : 4;
+  const contentScore = clampScore(postsScore + captionScore + topicScore + ctaScore);
+
+  const erBenchmark =
+    followers >= 1_000_000 ? 1.2 :
+    followers >= 100_000 ? 1.8 :
+    followers >= 10_000 ? 2.8 :
+    4;
+  const erScore = erBenchmark > 0 ? Math.min(62, (er / erBenchmark) * 45) : 0;
+  const viewScore = Math.min(25, (vtr / 12) * 25);
+  const interactionScore = followers > 0 ? Math.min(13, (avgEngagements / Math.max(1, followers * 0.01)) * 6) : 0;
+  const engagementScore = clampScore(erScore + viewScore + interactionScore);
+
+  const followerScore =
+    followers >= 1_000_000 ? 38 :
+    followers >= 100_000 ? 32 :
+    followers >= 10_000 ? 24 :
+    followers >= 1_000 ? 15 :
+    followers > 0 ? 8 : 0;
+  const ratioScore = following > 0 ? Math.min(16, (followers / following) / 20) : followers > 0 ? 10 : 0;
+  const verificationScore = profile.is_verified ? 16 : 0;
+  const socialProofScore = Math.min(20, mentionCount * 4 + Math.min(8, primaryNiche.hits * 2));
+  const authorityScore = clampScore(followerScore + ratioScore + verificationScore + socialProofScore);
+
+  const bio = profile.biography || '';
+  const hasValueProp = /untuk|bantu|solusi|specialist|official|produk|layanan|brand|agency|studio|cafe|kopi|coffee/.test(text);
+  const clarityScore = clampScore(
+    (bio.length >= 80 ? 32 : bio.length >= 45 ? 24 : bio.length >= 18 ? 14 : 4)
+    + (primaryNiche.hits > 0 ? 24 : 8)
+    + (hasValueProp ? 22 : 6)
+    + Math.min(22, hashtagCount * 3)
+  );
+  const brandScore = clampScore(contentScore * 0.25 + engagementScore * 0.3 + authorityScore * 0.2 + clarityScore * 0.25);
   const verdict = getBrandVerdict(brandScore);
 
   const campaignRules = [
@@ -369,22 +458,22 @@ function deriveBrandAnalysis(profile, analytics) {
     .sort((a, b) => b.count - a.count);
   if (campaigns.length === 0) {
     campaigns.push({
-      type: 'Always-on organic content',
+      type: posts.length > 0 ? 'Always-on organic content' : 'Belum ada campaign terdeteksi',
       count: posts.length,
-      evidence: 'Belum ada sinyal campaign eksplisit dari caption terbaru.',
+      evidence: posts.length > 0
+        ? 'Ada konten organik, tapi belum ada sinyal campaign eksplisit dari caption terbaru.'
+        : 'Data konten belum tersedia, jadi campaign perlu dicek manual dari link/post terbaru.',
     });
   }
 
-  const influencerPartners = analytics.topMentions.slice(0, 6).map((mention, index) => ({
+  const influencerPartners = topMentions.slice(0, 6).map((mention, index) => ({
     handle: mention,
     role: index < 2 ? 'Prioritas audit kolaborasi' : 'Potensi partner / komunitas',
   }));
   if (influencerPartners.length === 0) {
-    const suggestedTypes = [
-      analytics.tier === 'Nano' || analytics.tier === 'Micro' ? 'Micro KOL niche edukasi/lifestyle' : 'Mid-tier KOL untuk awareness',
-      'Creator dengan audience kota utama',
-      'Expert/mentor untuk konten authority',
-    ];
+    const suggestedTypes = brandScore >= 70
+      ? ['Mid-tier KOL untuk awareness', 'Creator whitelisting / affiliate', ...(primaryNiche.partnerTypes || []).slice(0, 1)]
+      : ['Micro KOL niche untuk validasi angle', ...(primaryNiche.partnerTypes || []).slice(0, 2)];
     suggestedTypes.forEach(type => influencerPartners.push({ handle: type, role: 'Tipe partner rekomendasi' }));
   }
 
@@ -396,8 +485,8 @@ function deriveBrandAnalysis(profile, analytics) {
         : 'Perjelas pesan utama, bio, proof, dan format konten sebelum budget besar.',
     },
     {
-      label: analytics.er >= 3 ? 'Pertahankan konten edukatif/interaktif' : 'Naikkan interaksi',
-      desc: analytics.er >= 3
+      label: er >= erBenchmark ? 'Pertahankan format yang memicu interaksi' : 'Naikkan interaksi',
+      desc: er >= erBenchmark
         ? 'ER cukup sehat. Gunakan CTA komentar, polling, dan serial konten.'
         : 'Perlu hook lebih kuat dan CTA yang spesifik di 3 detik pertama/caption awal.',
     },
@@ -409,16 +498,20 @@ function deriveBrandAnalysis(profile, analytics) {
     },
   ];
 
-  const recommendedCompetitors = primaryNiche.competitors.map((handle, index) => ({
-    handle,
-    reason: index === 0
-      ? `Benchmark utama untuk niche ${primaryNiche.niche}.`
-      : `Pembanding konten, campaign, dan positioning di kategori serupa.`,
-  }));
+  const normalizedUsername = username.replace(/[^a-z0-9]/g, '');
+  const recommendedCompetitors = primaryNiche.competitors
+    .filter(handle => handle.replace('@', '').replace(/[^a-z0-9]/g, '') !== normalizedUsername)
+    .slice(0, 4)
+    .map((handle, index) => ({
+      handle,
+      reason: index === 0
+        ? `Benchmark utama untuk vertical ${primaryNiche.niche}.`
+        : 'Pembanding konten, campaign, promo, dan positioning kategori serupa.',
+    }));
 
   const contentPillars = [
     primaryNiche.niche,
-    ...(analytics.interests || []).slice(0, 3).map(item => item.label),
+    ...interests.filter(item => item.score > 0).slice(0, 3).map(item => item.label),
   ].filter(Boolean);
 
   return {
