@@ -34,6 +34,8 @@ const THREADS_APP_SECRET = Deno.env.get('THREADS_APP_SECRET') ?? '';
 
 const FUNCTION_URL    = `${SUPABASE_URL}/functions/v1/platform-oauth`;
 const CALLBACK_URI    = 'https://cmgtaytmmwgdglmwdxrv.supabase.co/functions/v1/platform-oauth/callback';
+const DEAUTHORIZE_URI = 'https://cmgtaytmmwgdglmwdxrv.supabase.co/functions/v1/platform-oauth/deauthorize';
+const DATA_DELETION_URI = 'https://cmgtaytmmwgdglmwdxrv.supabase.co/functions/v1/platform-oauth/data-deletion';
 
 const cors = {
   'Access-Control-Allow-Origin':  '*',
@@ -219,11 +221,27 @@ serve(async (req) => {
   const url      = new URL(req.url);
   // Support both /callback path and ?action=callback query param
   const isCallbackPath = url.pathname.endsWith('/callback');
-  const action   = isCallbackPath ? 'callback' : url.searchParams.get('action');
+  const isDeauthorizePath = url.pathname.endsWith('/deauthorize');
+  const isDataDeletionPath = url.pathname.endsWith('/data-deletion');
+  const action   = isCallbackPath ? 'callback'
+    : isDeauthorizePath ? 'deauthorize'
+    : isDataDeletionPath ? 'data_deletion'
+    : url.searchParams.get('action');
   const platform = url.searchParams.get('platform');
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
   try {
+    if (action === 'deauthorize') {
+      return json({ success: true });
+    }
+
+    if (action === 'data_deletion') {
+      return json({
+        url: DATA_DELETION_URI,
+        confirmation_code: crypto.randomUUID(),
+      });
+    }
+
     // ── INITIATE ─────────────────────────────────────────────
     if (action === 'initiate') {
       const workspaceId = url.searchParams.get('workspace_id');
