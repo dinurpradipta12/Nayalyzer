@@ -426,7 +426,7 @@ export default function AccountAnalytics() {
     const base = demo ? mock : realDataDefaults(activeTab);
     const platformContents = contents.filter(c => {
       if (c.platform !== activeTab) return false;
-      return c.social_account_id ? c.social_account_id === real.id : true;
+      return c.social_account_id === real.id;
     });
     const hasContent = platformContents.length > 0;
 

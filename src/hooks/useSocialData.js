@@ -4,7 +4,7 @@ import { withTimeout } from '../lib/async';
 
 const CACHE_TTL_MS   = 6 * 60 * 60 * 1000; // 6 jam — ketika cache kadaluarsa, sync lagi
 const STALE_SYNC_MS  = 60 * 60 * 1000;      // sync jika data > 1 jam dari server
-const CACHE_VERSION  = 2;
+const CACHE_VERSION  = 3;
 
 function cacheKey(wsId) { return `naya_social_${wsId}`; }
 
@@ -91,19 +91,28 @@ async function fetchFromDB(workspaceId) {
   ]), 7000, 'Social data request timeout');
 
   const conns = connResult.data || [];
-  const connectedAccountIds = new Set(conns.map(conn => conn.social_account_id).filter(Boolean));
-  const connectedPlatforms = new Set(conns.map(conn => conn.platform?.toLowerCase()).filter(Boolean));
-  const socialAccts = (accountResult.data || []).filter(account => {
-    const platformKey = account.platform?.toLowerCase();
-    return account.connection_status === 'connected'
-      && (connectedAccountIds.has(account.id) || connectedPlatforms.has(platformKey));
-  });
+  const accountRows = accountResult.data || [];
+  const accountById = new Map(accountRows.map(account => [account.id, account]));
+  const socialAccts = conns
+    .map(conn => {
+      if (conn.social_account_id && accountById.has(conn.social_account_id)) {
+        return accountById.get(conn.social_account_id);
+      }
+
+      const providerUsername = conn.provider_username?.replace(/^@/, '').toLowerCase();
+      return accountRows.find(account => {
+        const accountUsername = account.username?.replace(/^@/, '').toLowerCase();
+        return account.platform === conn.platform
+          && account.connection_status === 'connected'
+          && providerUsername
+          && accountUsername === providerUsername;
+      });
+    })
+    .filter(Boolean);
+  const connectedAccountIds = new Set(socialAccts.map(account => account.id).filter(Boolean));
   const metricRows = metricResult.data || [];
   const contentRows = (contentResult.data || []).filter(content => {
-    const platformKey = content.platform?.toLowerCase();
-    return connectedAccountIds.size > 0
-      ? connectedAccountIds.has(content.social_account_id)
-      : connectedPlatforms.has(platformKey);
+    return content.social_account_id && connectedAccountIds.has(content.social_account_id);
   });
 
   const accounts = {};

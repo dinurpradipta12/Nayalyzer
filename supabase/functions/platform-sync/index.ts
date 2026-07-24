@@ -430,7 +430,11 @@ serve(async (req) => {
 
     // Load connection
     const { data: conn, error: connErr } = await supabase
-      .from('platform_connections').select('*').eq('id', connection_id).single();
+      .from('platform_connections')
+      .select('*')
+      .eq('id', connection_id)
+      .eq('workspace_id', workspace_id)
+      .single();
     if (connErr || !conn) return jsonR({ error: 'Connection not found' }, 404);
     if (conn.connection_status !== 'connected') return jsonR({ error: 'Connection is not active' }, 422);
 
