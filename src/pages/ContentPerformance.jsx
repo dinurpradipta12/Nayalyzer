@@ -111,21 +111,21 @@ function normalizeRealContent(rows) {
 
 const PLATFORM_METRICS = {
   instagram: [
-    { key: 'views',              label: 'Total Views',  icon: Eye,          color: '#8B5CF6', src: 'content' },
+    { key: 'views',              label: 'Total Views',  icon: Eye,          color: '#187877', src: 'content' },
     { key: 'reach',              label: 'Reach',        icon: TrendingUp,   color: '#6366F1', src: 'account' },
     { key: 'total_interactions', label: 'Interactions', icon: Heart,        color: '#EC4899', src: 'content' },
     { key: 'followers',          label: 'Follows',      icon: UserCheck,    color: '#10B981', src: 'account' },
     { key: 'avg_er',             label: 'Rata-rata ER', icon: BarChart2,    color: '#F59E0B', src: 'content', isAvg: true },
   ],
   threads: [
-    { key: 'views',    label: 'Views',   icon: Eye,          color: '#8B5CF6', src: 'content' },
+    { key: 'views',    label: 'Views',   icon: Eye,          color: '#187877', src: 'content' },
     { key: 'likes',    label: 'Likes',   icon: Heart,        color: '#EC4899', src: 'content' },
     { key: 'replies',  label: 'Replies', icon: Users,        color: '#06B6D4', src: 'content' },
     { key: 'reposts',  label: 'Reposts', icon: RefreshCw,    color: '#10B981', src: 'content' },
     { key: 'quotes',   label: 'Quotes',  icon: BarChart2,    color: '#F59E0B', src: 'content' },
   ],
   tiktok: [
-    { key: 'views',    label: 'Views',    icon: Eye,          color: '#8B5CF6', src: 'content' },
+    { key: 'views',    label: 'Views',    icon: Eye,          color: '#187877', src: 'content' },
     { key: 'likes',    label: 'Likes',    icon: Heart,        color: '#EC4899', src: 'content' },
     { key: 'comments', label: 'Comments', icon: Users,        color: '#06B6D4', src: 'content' },
     { key: 'shares',   label: 'Shares',   icon: MousePointer, color: '#10B981', src: 'content' },
@@ -403,7 +403,7 @@ function InsightTab({ metrics, contents, syncing, reload }) {
       <div className="bg-white rounded-2xl border border-purple-50 shadow-card p-5">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: (activeM?.color ?? '#8B5CF6') + '20' }}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: (activeM?.color ?? '#187877') + '20' }}>
               {activeM && <activeM.icon size={13} style={{ color: activeM.color }} />}
             </div>
             <div>
@@ -429,8 +429,8 @@ function InsightTab({ metrics, contents, syncing, reload }) {
             <AreaChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: -20 }}>
               <defs>
                 <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={activeM?.color ?? '#8B5CF6'} stopOpacity={0.18} />
-                  <stop offset="95%" stopColor={activeM?.color ?? '#8B5CF6'} stopOpacity={0} />
+                  <stop offset="5%" stopColor={activeM?.color ?? '#187877'} stopOpacity={0.18} />
+                  <stop offset="95%" stopColor={activeM?.color ?? '#187877'} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" vertical={false} />
@@ -444,7 +444,7 @@ function InsightTab({ metrics, contents, syncing, reload }) {
                 </div>
               ) : null} />
               {maxEntry && <ReferenceLine x={maxEntry.date} stroke={activeM?.color} strokeDasharray="3 3" strokeOpacity={0.4} />}
-              <Area type="monotone" dataKey="value" stroke={activeM?.color ?? '#8B5CF6'} strokeWidth={2} fill="url(#areaGrad)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="value" stroke={activeM?.color ?? '#187877'} strokeWidth={2} fill="url(#areaGrad)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         ) : (
@@ -503,11 +503,11 @@ function InsightTab({ metrics, contents, syncing, reload }) {
         if (sorted.length === 0) return null;
         const isTextPlatform = activePlatform === 'threads';
         const fmtV = v => { const n = Math.round(v); return n >= 1000 ? (n/1000).toFixed(1)+'K' : n.toLocaleString('id-ID'); };
-        const rankColor = i => i === 0 ? '#F59E0B' : i === 1 ? '#9CA3AF' : i === 2 ? '#CD7C2F' : '#8B5CF6';
+        const rankColor = i => i === 0 ? '#F59E0B' : i === 1 ? '#9CA3AF' : i === 2 ? '#CD7C2F' : '#187877';
         return (
           <div className="bg-white rounded-2xl border border-purple-50 shadow-card p-5">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: (activeM?.color ?? '#8B5CF6') + '20' }}>
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: (activeM?.color ?? '#187877') + '20' }}>
                 {activeM && <activeM.icon size={12} style={{ color: activeM.color }} />}
               </div>
               <h3 className="text-sm font-semibold text-gray-700">Konten Terbaik — {activeM?.label}</h3>
@@ -812,7 +812,7 @@ export default function ContentPerformance() {
                   </div>
                 ) : null}
               />
-              <Bar dataKey="er" fill="#8B5CF6" fillOpacity={0.85} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="er" fill="#187877" fillOpacity={0.85} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

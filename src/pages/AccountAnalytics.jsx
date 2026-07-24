@@ -116,7 +116,7 @@ function buildAudienceActivity(contents) {
   return rows.sort((a, b) => Number(a.hour) - Number(b.hour));
 }
 
-const GENDER_COLORS = { F: '#EC4899', M: '#8B5CF6', U: '#9ca3af', female: '#EC4899', male: '#8B5CF6' };
+const GENDER_COLORS = { F: '#EC4899', M: '#187877', U: '#9ca3af', female: '#EC4899', male: '#187877' };
 const GENDER_LABELS = { F: 'Perempuan', M: 'Laki-laki', U: 'Lainnya', female: 'Perempuan', male: 'Laki-laki' };
 
 function GenderDonut({ total, genderData }) {
@@ -135,7 +135,7 @@ function GenderDonut({ total, genderData }) {
     const TAU = Math.PI * 2;
     const start = -Math.PI / 2;
     const isDark = document.documentElement.classList.contains('dark');
-    const track  = isDark ? '#2d2450' : '#EDE9FE';
+    const track  = isDark ? '#2d2450' : '#F0FAFA';
 
     ctx.clearRect(0, 0, 110, 110);
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU);
@@ -156,7 +156,7 @@ function GenderDonut({ total, genderData }) {
       ctx.beginPath(); ctx.arc(cx, cy, r, start, start + TAU * 0.45);
       ctx.strokeStyle = '#EC4899'; ctx.lineWidth = sw; ctx.lineCap = 'round'; ctx.stroke();
       ctx.beginPath(); ctx.arc(cx, cy, r, start + TAU * 0.45 + 0.06, start + TAU * 0.999);
-      ctx.strokeStyle = '#8B5CF6'; ctx.lineWidth = sw; ctx.lineCap = 'round'; ctx.stroke();
+      ctx.strokeStyle = '#187877'; ctx.lineWidth = sw; ctx.lineCap = 'round'; ctx.stroke();
     }
   }, [genderData]);
 
@@ -234,7 +234,7 @@ function DemographicsSection({ platform, followers, demographics }) {
                 <div className="h-1.5 bg-purple-50 rounded-full overflow-hidden">
                   <div className="h-full rounded-full" style={{
                     width: `${(a.pct / maxAge) * 100}%`,
-                    background: a.pct === maxAge ? 'linear-gradient(90deg,#8B5CF6,#c084fc)' : '#8B5CF6',
+                    background: a.pct === maxAge ? 'linear-gradient(90deg,#187877,#c084fc)' : '#187877',
                   }} />
                 </div>
                 <span className={`text-[11px] tabular-nums text-right ${a.pct === maxAge ? 'font-bold text-violet-600' : 'font-medium text-gray-600'}`}>
@@ -385,7 +385,7 @@ function PlatformCard({ data }) {
         <ChartCard title="Performa Overview" subtitle="Skor relatif per dimensi">
           <ResponsiveContainer width="100%" height={220}>
             <RadarChart data={radarData}>
-              <PolarGrid stroke="#EDE9FE" />
+              <PolarGrid stroke="#F0FAFA" />
               <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: '#9ca3af' }} />
               <Radar name={data.platform} dataKey="A" stroke={color} fill={color} fillOpacity={0.2} strokeWidth={2} />
             </RadarChart>

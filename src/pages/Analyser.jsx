@@ -17,7 +17,7 @@ import { useWorkspace } from '../context/WorkspaceContext';
 import { usePlatformVisibility } from '../lib/platformVisibility';
 
 // Palet ungu/lavender khas Nayalyzer
-const AUTH_COLORS  = { real: '#8B5CF6', mass: '#C084FC', influencer: '#DDD6FE', suspicious: '#F0ABFC' };
+const AUTH_COLORS  = { real: '#187877', mass: '#0B2A50', influencer: '#A8D5D1', suspicious: '#7DBDB9' };
 const ANALYSER_PLATFORM_KEYS = ['instagram', 'tiktok', 'threads'];
 const PLATFORM_LABELS = { instagram: 'Instagram', tiktok: 'TikTok', threads: 'Threads' };
 
@@ -196,8 +196,8 @@ function deriveAnalytics(profile) {
   // Gender split: estimasi deterministik dari karakter akun
   const femalePct = +(35 + rnd() * 45).toFixed(1);
   const gender = [
-    { name: 'Female', value: femalePct,                    color: '#8B5CF6' },
-    { name: 'Male',   value: +(100 - femalePct).toFixed(1), color: '#C084FC' },
+    { name: 'Female', value: femalePct,                    color: '#187877' },
+    { name: 'Male',   value: +(100 - femalePct).toFixed(1), color: '#0B2A50' },
   ];
 
   // Age distribution: kurva umum sosial media Indonesia, digeser sedikit per akun
@@ -227,7 +227,7 @@ function deriveAnalytics(profile) {
   const locations = picked.map((city, i) => {
     const pct = +(locBase).toFixed(1);
     locBase *= 0.62 + rnd() * 0.12;
-    return { city, pct, color: ['#8B5CF6', '#A855F7', '#C084FC', '#DDD6FE', '#E9D5FF'][i] };
+    return { city, pct, color: ['#187877', '#126B73', '#0B2A50', '#A8D5D1', '#D3EAE8'][i] };
   });
 
   // Hashtags & mentions dari caption
@@ -930,7 +930,7 @@ function ProfileAnalysisColumn({ profile, platform, sourceLabel, onClose }) {
                 <XAxis dataKey="range" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
                 <Tooltip formatter={v => `${v}%`} />
-                <Bar dataKey="pct" name="Persentase" fill="#8B5CF6" radius={[4, 4, 0, 0]}
+                <Bar dataKey="pct" name="Persentase" fill="#187877" radius={[4, 4, 0, 0]}
                   label={{ position: 'top', fontSize: 9, fill: '#6b7280', formatter: v => `${v}%` }} />
               </BarChart>
             </ResponsiveContainer>
@@ -967,7 +967,7 @@ function ProfileAnalysisColumn({ profile, platform, sourceLabel, onClose }) {
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmtNum} domain={['dataMin', 'dataMax']} />
               <Tooltip formatter={v => v.toLocaleString('id-ID')} />
-              <Line type="monotone" dataKey="followers" name="Followers" stroke="#8B5CF6" strokeWidth={2} dot={{ r: 3, fill: '#8B5CF6' }} />
+              <Line type="monotone" dataKey="followers" name="Followers" stroke="#187877" strokeWidth={2} dot={{ r: 3, fill: '#187877' }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -1131,7 +1131,7 @@ function InfluencerModePanel({ profile, platform, analytics }) {
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmtNum} />
               <Tooltip formatter={value => value.toLocaleString('id-ID')} />
-              <Bar dataKey="views" name="Views" fill="#8B5CF6" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="views" name="Views" fill="#187877" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -1823,7 +1823,7 @@ export default function Analyser() {
                 <XAxis dataKey="range" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
                 <Tooltip formatter={v => `${v}%`} />
-                <Bar dataKey="pct" name="Persentase" fill="#8B5CF6" radius={[4, 4, 0, 0]}
+                <Bar dataKey="pct" name="Persentase" fill="#187877" radius={[4, 4, 0, 0]}
                   label={{ position: 'top', fontSize: 9, fill: '#6b7280', formatter: v => `${v}%` }} />
               </BarChart>
             </ResponsiveContainer>
@@ -1863,7 +1863,7 @@ export default function Analyser() {
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmtNum} domain={['dataMin', 'dataMax']} />
               <Tooltip formatter={v => v.toLocaleString('id-ID')} />
-              <Line type="monotone" dataKey="followers" name="Followers" stroke="#8B5CF6" strokeWidth={2} dot={{ r: 3, fill: '#8B5CF6' }} />
+              <Line type="monotone" dataKey="followers" name="Followers" stroke="#187877" strokeWidth={2} dot={{ r: 3, fill: '#187877' }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>

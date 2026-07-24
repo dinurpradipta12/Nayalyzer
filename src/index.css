@@ -8,7 +8,7 @@
   }
   body {
     font-family: 'Inter', system-ui, sans-serif;
-    background-color: #F8F5FF;
+    background-color: #F0FAFA;
     color: #1F2937;
     -webkit-font-smoothing: antialiased;
   }
@@ -17,21 +17,21 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: #F3E8FF;
+    background: #EAF5F4;
     border-radius: 10px;
   }
   ::-webkit-scrollbar-thumb {
-    background: #C084FC;
+    background: #0B2A50;
     border-radius: 10px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #8B5CF6;
+    background: #187877;
   }
 }
 
 @layer components {
   .gradient-text {
-    background: linear-gradient(135deg, #8B5CF6 0%, #C084FC 100%);
+    background: linear-gradient(135deg, #187877 0%, #0B2A50 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -42,17 +42,17 @@
     border: 1px solid rgba(221, 214, 254, 0.4);
   }
   .purple-btn {
-    background: linear-gradient(135deg, #8B5CF6 0%, #C084FC 100%);
+    background: linear-gradient(135deg, #187877 0%, #0B2A50 100%);
     color: white;
     border-radius: 12px;
     padding: 10px 20px;
     font-weight: 600;
     transition: all 0.2s;
-    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 4px 15px rgba(24, 120, 119, 0.3);
   }
   .purple-btn:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+    box-shadow: 0 6px 20px rgba(24, 120, 119, 0.4);
   }
   .purple-btn:active {
     transform: translateY(0);

@@ -9,7 +9,7 @@ import ChartCard from '../components/ui/ChartCard';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 
-const LINE_COLORS = ['#8B5CF6', '#E040FB', '#26C6DA', '#F59E0B', '#78909C'];
+const LINE_COLORS = ['#187877', '#E040FB', '#26C6DA', '#F59E0B', '#78909C'];
 
 const fmt = (n) => n >= 1000000 ? `${(n/1000000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n ?? 0);
 
@@ -783,7 +783,7 @@ export default function CompetitorAnalysis() {
                       </div>
                     ) : null}
                   />
-                  <Bar dataKey="freq" fill="#DDD6FE" radius={[0,6,6,0]} />
+                  <Bar dataKey="freq" fill="#A8D5D1" radius={[0,6,6,0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
