@@ -1099,6 +1099,7 @@ function InfluencerModePanel({ profile, platform, analytics }) {
 
 function BrandModePanel({ profile, platform, analytics }) {
   const brand = useMemo(() => deriveBrandAnalysis(profile, analytics), [profile, analytics]);
+  const followerGrowth3Months = useMemo(() => (analytics.growth || []).slice(-3), [analytics.growth]);
 
   return (
     <div className="space-y-4">
@@ -1125,12 +1126,6 @@ function BrandModePanel({ profile, platform, analytics }) {
               <p className="text-sm text-gray-400 truncate">@{profile.username}</p>
               {profile.biography && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{profile.biography}</p>}
             </div>
-          </div>
-
-          <div className={`rounded-2xl border px-4 py-3 ${brand.verdict.color}`}>
-            <p className="text-[10px] uppercase tracking-wide font-semibold opacity-80">Brand Health</p>
-            <p className="text-xl font-bold">{brand.verdict.label}</p>
-            <p className="text-xs opacity-80">Score {brand.brandScore}/100</p>
           </div>
         </div>
         <p className="text-sm text-gray-500 mt-4 leading-relaxed">{brand.verdict.summary}</p>
@@ -1240,9 +1235,9 @@ function BrandModePanel({ profile, platform, analytics }) {
         </div>
       </div>
 
-      <ChartCard title="Brand Growth Proxy" subtitle="Followers growth dan engagement sebagai sinyal brand health">
+      <ChartCard title="Pertumbuhan Followers" subtitle="3 bulan terakhir">
         <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={analytics.growth} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
+          <LineChart data={followerGrowth3Months} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmtNum} domain={['dataMin', 'dataMax']} />
