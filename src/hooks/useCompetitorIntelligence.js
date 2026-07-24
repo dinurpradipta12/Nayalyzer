@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { generateCompetitorInsight } from '../lib/competitorInsightEngine';
 import { scoreCompetitor } from '../lib/competitorScoring';
+import { withTimeout } from '../lib/async';
 
 // ── Demo data ─────────────────────────────────────────────────
 const DEMO_COMPETITORS = [
@@ -113,7 +114,7 @@ export function useCompetitorIntelligence(workspaceId) {
 
     setLoading(true);
     try {
-      const [{ data: comps }, { data: contData }, { data: ownAccounts }] = await Promise.all([
+      const [{ data: comps }, { data: contData }, { data: ownAccounts }] = await withTimeout(Promise.all([
         supabase
           .from('competitors')
           .select('*, recent_posts, competitor_metrics(followers,follower_growth,average_engagement_rate,average_likes,average_comments,average_shares,posting_frequency,top_content_type,metric_date)')
@@ -130,7 +131,7 @@ export function useCompetitorIntelligence(workspaceId) {
           .eq('workspace_id', workspaceId)
           .order('metric_date', { ascending: false })
           .limit(10),
-      ]);
+      ]), 8000, 'Competitor intelligence request timeout');
 
       const igMetric = ownAccounts?.find(m => m.social_accounts?.platform === 'Instagram') ?? ownAccounts?.[0] ?? null;
       if (igMetric) {
@@ -197,6 +198,7 @@ export function useCompetitorIntelligence(workspaceId) {
             hook_style:    '-',
             cta_style:     '-',
             title:         (p.caption ?? '').slice(0, 100) || `Post ${i + 1}`,
+            caption:       p.caption ?? '',
             likes, comments,
             shares:        p.shares ?? 0,
             views,

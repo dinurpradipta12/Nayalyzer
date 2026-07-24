@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { reportData } from '../data/mockData';
+import { withTimeout } from '../lib/async';
 
 export function useReports(workspaceId) {
   const [reports, setReports] = useState([]);
@@ -16,11 +17,11 @@ export function useReports(workspaceId) {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('reports')
         .select('*, profiles(full_name)')
         .eq('workspace_id', workspaceId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }), 7000, 'Reports request timeout');
       if (error) throw error;
       setReports(data?.length ? data : [{ id: 'demo-report', ...reportData }]);
     } catch (e) {

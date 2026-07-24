@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext';
 import { AppProvider } from './context/AppContext';
@@ -19,6 +19,8 @@ import DataSources             from './pages/DataSources';
 import ConnectedAccounts        from './pages/ConnectedAccounts';
 import CompetitorIntelligence   from './pages/CompetitorIntelligence';
 import Analyser                 from './pages/Analyser';
+import { FEATURE_BY_ROUTE } from './lib/permissions';
+import JoinWorkspace            from './pages/JoinWorkspace';
 
 // ── Full-screen loading spinner ─────────────────────────────────
 function LoadingScreen() {
@@ -44,6 +46,30 @@ function RequireWorkspace({ children }) {
   if (loading) return <LoadingScreen />;
   if (error === 'DB_PENDING') return <DBPendingScreen />;
   return hasWorkspace ? children : <Navigate to="/create-workspace" replace />;
+}
+
+function PermissionDeniedScreen() {
+  return (
+    <div className="min-h-[55vh] flex items-center justify-center p-6">
+      <div className="bg-white rounded-2xl shadow-card border border-purple-50 p-8 max-w-md w-full text-center">
+        <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center mx-auto mb-4 text-amber-600">
+          <span className="text-xl">!</span>
+        </div>
+        <h2 className="text-lg font-bold text-gray-800 mb-2">Akses fitur belum diizinkan</h2>
+        <p className="text-sm text-gray-400 leading-relaxed">
+          Minta admin workspace untuk mengaktifkan fitur ini di halaman Team Members.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function RequireFeature({ children }) {
+  const location = useLocation();
+  const { hasFeature } = useWorkspace();
+  const featureKey = FEATURE_BY_ROUTE[location.pathname];
+  if (!featureKey || hasFeature(featureKey)) return children;
+  return <PermissionDeniedScreen />;
 }
 
 function DBPendingScreen() {
@@ -89,7 +115,9 @@ function AppPage({ children }) {
   return (
     <RequireAuth>
       <RequireWorkspace>
-        <Layout>{children}</Layout>
+        <Layout>
+          <RequireFeature>{children}</RequireFeature>
+        </Layout>
       </RequireWorkspace>
     </RequireAuth>
   );
@@ -99,9 +127,10 @@ function AppPage({ children }) {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Public / auth */}
-      <Route path="/" element={<RedirectIfAuth><SignIn /></RedirectIfAuth>} />
-      <Route path="/signup" element={<RedirectIfAuth><SignUp /></RedirectIfAuth>} />
+	      {/* Public / auth */}
+	      <Route path="/" element={<RedirectIfAuth><SignIn /></RedirectIfAuth>} />
+	      <Route path="/signup" element={<RedirectIfAuth><SignUp /></RedirectIfAuth>} />
+	      <Route path="/join-workspace" element={<JoinWorkspace />} />
 
       {/* Workspace creation (authenticated but no workspace yet) */}
       <Route path="/create-workspace" element={

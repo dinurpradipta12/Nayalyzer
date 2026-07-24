@@ -7,26 +7,27 @@ import { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkspace } from '../../context/WorkspaceContext';
 import { useApp } from '../../context/AppContext';
+import { roleDisplayName } from '../../lib/permissions';
 
 const navItems = [
-  { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/analytics',   icon: BarChart2,        label: 'Account Analytics' },
-  { to: '/content',     icon: FileText,          label: 'Content Performance' },
-  { to: '/competitors', icon: Users,             label: 'Competitor Analysis' },
-  { to: '/hypothesis',              icon: Lightbulb,   label: 'AI Hypothesis' },
-  { to: '/competitor-intelligence', icon: Crosshair,   label: 'Competitor Intel' },
-  { to: '/analyser',                icon: Search,      label: 'Analyser' },
-  { to: '/reports',                 icon: BookOpen,    label: 'Reports' },
+  { to: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard', feature: 'dashboard' },
+  { to: '/analytics',   icon: BarChart2,        label: 'Account Analytics', feature: 'analytics' },
+  { to: '/content',     icon: FileText,          label: 'Content Performance', feature: 'content' },
+  { to: '/competitors', icon: Users,             label: 'Competitor Analysis', feature: 'competitors' },
+  { to: '/hypothesis',              icon: Lightbulb,   label: 'AI Hypothesis', feature: 'hypothesis' },
+  { to: '/competitor-intelligence', icon: Crosshair,   label: 'Competitor Intel', feature: 'competitor_intelligence' },
+  { to: '/analyser',                icon: Search,      label: 'Analyser', feature: 'analyser' },
+  { to: '/reports',                 icon: BookOpen,    label: 'Reports', feature: 'reports' },
 ];
 
 const workspaceItems = [
-  { to: '/team',               icon: UserCircle, label: 'Team Members' },
-  { to: '/settings',           icon: Settings,   label: 'Settings' },
+  { to: '/team',               icon: UserCircle, label: 'Team Members', feature: 'team' },
+  { to: '/settings',           icon: Settings,   label: 'Settings', feature: 'settings' },
 ];
 
 export default function Sidebar() {
   const { signOut, profile }                              = useAuth();
-  const { activeWorkspace }  = useWorkspace();
+  const { activeWorkspace, hasFeature }  = useWorkspace();
   const { sidebarOpen, setSidebarOpen } = useApp();
   const navigate = useNavigate();
 
@@ -106,12 +107,12 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden">
-          <p className={`text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 ${collapsed ? 'lg:hidden' : ''}`}>Analitik</p>
-          {navItems.map(renderNav)}
+	          <p className={`text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 ${collapsed ? 'lg:hidden' : ''}`}>Analitik</p>
+	          {navItems.filter(item => hasFeature(item.feature)).map(renderNav)}
 
-          <p className={`text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-8 ${collapsed ? 'lg:hidden' : ''}`}>Workspace</p>
-          {collapsed && <div className="hidden lg:block border-t border-purple-50 my-3 mx-2" />}
-          {workspaceItems.map(renderNav)}
+	          <p className={`text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2 mt-8 ${collapsed ? 'lg:hidden' : ''}`}>Workspace</p>
+	          {collapsed && <div className="hidden lg:block border-t border-purple-50 my-3 mx-2" />}
+	          {workspaceItems.filter(item => hasFeature(item.feature)).map(renderNav)}
         </nav>
 
         {/* Profile */}
@@ -123,7 +124,7 @@ export default function Sidebar() {
             </div>
             <div className={`flex-1 min-w-0 ${collapsed ? 'lg:hidden' : ''}`}>
               <p className="text-sm font-semibold text-gray-800 truncate">{displayName}</p>
-              <p className="text-xs text-purple-400 font-medium capitalize">{activeWorkspace?.role || 'Pro Plan'}</p>
+              <p className="text-xs text-purple-400 font-medium">{roleDisplayName(activeWorkspace?.role)}</p>
             </div>
           </div>
           <button onClick={handleLogout} title={collapsed ? 'Keluar' : undefined}

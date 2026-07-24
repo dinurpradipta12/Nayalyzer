@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -15,11 +15,13 @@ import { useSocialData } from '../hooks/useSocialData';
 import { SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { DashboardSkeleton } from '../components/ui/Skeleton';
+import { usePlatformVisibility } from '../lib/platformVisibility';
 
 const COLORS  = { instagram: '#E040FB', tiktok: '#26C6DA', threads: '#9E9E9E' };
 const PLABELS = { instagram: 'IG', tiktok: 'TT', threads: 'TH' };
 const PLATFORM_KEYS    = ['instagram', 'tiktok', 'threads'];
 const PLATFORM_LABELS  = ['Semua', 'Instagram', 'TikTok', 'Threads'];
+const PLATFORM_NAME_BY_KEY = { instagram: 'Instagram', tiktok: 'TikTok', threads: 'Threads' };
 
 const DATE_PRESETS = [
   { key: '7d',  label: '7 Hari' },
@@ -56,11 +58,11 @@ function filterByDate(rows, startStr, endStr) {
 }
 
 // ── KPI computation ────────────────────────────────────────────
-function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endStr, demo) {
-  const keys = platformFilter === 'Semua' ? PLATFORM_KEYS : [platformFilter.toLowerCase()];
+function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endStr, demo, platformKeys = PLATFORM_KEYS) {
+  const keys = platformFilter === 'Semua' ? platformKeys : [platformFilter.toLowerCase()];
 
   const perPlatform = {};
-  PLATFORM_KEYS.forEach(k => {
+  platformKeys.forEach(k => {
     const acc  = accounts[k];
     // mock hanya dipakai di demo mode (tanpa backend) — user asli lihat data nyata / kosong
     const mock = demo ? (accountData[k] ?? {}) : {};
@@ -99,7 +101,7 @@ function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endS
     : 0;
 
   let bestPlatform = '–', bestER = 0;
-  PLATFORM_KEYS.forEach(k => {
+  platformKeys.forEach(k => {
     const er = perPlatform[k].er ?? 0;
     if (er > bestER) { bestER = er; bestPlatform = k.charAt(0).toUpperCase() + k.slice(1); }
   });
@@ -110,7 +112,7 @@ function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endS
 
   // breakdown arrays for Semua mode
   const mkBreakdown = (field, isPercent = false) =>
-    PLATFORM_KEYS.map(k => ({
+    platformKeys.map(k => ({
       key: k,
       label: PLABELS[k],
       color: COLORS[k],
@@ -134,9 +136,9 @@ function computeKPIs(accounts, metrics, contents, platformFilter, startStr, endS
 }
 
 // ── Monthly chart data ─────────────────────────────────────────
-function buildMonthlyChart(metrics, startStr, endStr) {
+function buildMonthlyChart(metrics, startStr, endStr, platformKeys = PLATFORM_KEYS) {
   const byMonth = {};
-  PLATFORM_KEYS.forEach(k => {
+  platformKeys.forEach(k => {
     const rows = filterByDate(metrics[k], startStr, endStr);
     rows.forEach(r => {
       const m = r.metric_date?.slice(0, 7);
@@ -153,7 +155,7 @@ function buildMonthlyChart(metrics, startStr, endStr) {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([m, v]) => {
       const row = { month: new Date(m + '-01').toLocaleString('id-ID', { month: 'short' }) };
-      PLATFORM_KEYS.forEach(k => {
+      platformKeys.forEach(k => {
         row[k]            = v[k] || null;
         row[k + '_reach'] = v[k + '_r'] || null;
         const ea          = v[k + '_ea'] ?? [];
@@ -292,6 +294,9 @@ export default function Dashboard() {
   const [dateFilter, setDateFilter] = useState({ preset: '30d', customStart: '', customEnd: '' });
   const { activeWorkspace } = useWorkspace();
   const { accounts, metrics, contents, syncing, loading, reload } = useSocialData(activeWorkspace?.id);
+  const { visiblePlatformKeys, visiblePlatforms } = usePlatformVisibility(activeWorkspace?.id);
+  const platformKeys = visiblePlatformKeys.length ? visiblePlatformKeys : PLATFORM_KEYS;
+  const platformLabels = ['Semua', ...(visiblePlatforms.length ? visiblePlatforms : PLATFORM_LABELS.slice(1))];
 
   // Demo mode = tanpa backend. User asli (backend aktif) tidak pernah lihat mock.
   const demo = !SUPABASE_ENABLED;
@@ -301,12 +306,12 @@ export default function Dashboard() {
   );
 
   const kpi = useMemo(
-    () => computeKPIs(accounts, metrics, contents, activePlatform, startStr, endStr, demo),
-    [accounts, metrics, contents, activePlatform, startStr, endStr, demo]
+    () => computeKPIs(accounts, metrics, contents, activePlatform, startStr, endStr, demo, platformKeys),
+    [accounts, metrics, contents, activePlatform, startStr, endStr, demo, platformKeys]
   );
 
-  const chartKeys = activePlatform === 'Semua' ? PLATFORM_KEYS : [activePlatform.toLowerCase()];
-  const realTrend = useMemo(() => buildMonthlyChart(metrics, startStr, endStr), [metrics, startStr, endStr]);
+  const chartKeys = activePlatform === 'Semua' ? platformKeys : [activePlatform.toLowerCase()];
+  const realTrend = useMemo(() => buildMonthlyChart(metrics, startStr, endStr, platformKeys), [metrics, startStr, endStr, platformKeys]);
 
   const followerData = realTrend.length ? realTrend : (demo ? followerGrowthTrend : []);
   const erData = realTrend.length
@@ -318,8 +323,9 @@ export default function Dashboard() {
 
   const topContent = useMemo(() => {
     const list = contents.length ? contents : (demo ? contentData : []);
-    const filtered = activePlatform === 'Semua' ? list : list.filter(c => c.platform?.toLowerCase() === activePlatform.toLowerCase());
-    return (filtered.length ? filtered : list)
+    const visibleList = list.filter(c => platformKeys.includes(c.platform?.toLowerCase()));
+    const filtered = activePlatform === 'Semua' ? visibleList : visibleList.filter(c => c.platform?.toLowerCase() === activePlatform.toLowerCase());
+    return (filtered.length ? filtered : (activePlatform === 'Semua' ? visibleList : []))
       .map(c => {
         const m = c.content_metrics?.[0] ?? c;
         const er    = m.engagement_rate ?? c.engagementRate ?? 0;
@@ -336,7 +342,13 @@ export default function Dashboard() {
       })
       .sort((a, b) => b.performanceScore - a.performanceScore)
       .slice(0, 5);
-  }, [contents, activePlatform, demo]);
+  }, [contents, activePlatform, demo, platformKeys]);
+
+  useEffect(() => {
+    if (activePlatform !== 'Semua' && !platformLabels.includes(activePlatform)) {
+      setActivePlatform('Semua');
+    }
+  }, [activePlatform, platformLabels]);
 
   const showBreakdown = activePlatform === 'Semua';
 
@@ -351,7 +363,7 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         {/* Platform tabs */}
         <div className="flex items-center gap-2 flex-wrap flex-1">
-          {PLATFORM_LABELS.map(p => (
+          {platformLabels.map(p => (
             <button key={p} onClick={() => setActivePlatform(p)}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-150
                 ${activePlatform === p
@@ -407,13 +419,13 @@ export default function Dashboard() {
         <div className="col-span-2 bg-white border border-purple-100 rounded-2xl p-3 shadow-card">
           <p className="text-xs font-semibold text-gray-500 mb-2.5 px-0.5">Audience per Platform</p>
           <div className="flex gap-2">
-            {PLATFORM_KEYS.map(k => (
+            {platformKeys.map(k => (
               <AudienceCard key={k} platformKey={k}
                 account={accounts[k]}
                 perPlatformData={kpi.perPlatform[k]}
                 demo={demo}
-                isActive={activePlatform === (k.charAt(0).toUpperCase() + k.slice(1))}
-                onClick={() => setActivePlatform(k.charAt(0).toUpperCase() + k.slice(1))} />
+                isActive={activePlatform === PLATFORM_NAME_BY_KEY[k]}
+                onClick={() => setActivePlatform(PLATFORM_NAME_BY_KEY[k])} />
             ))}
           </div>
         </div>

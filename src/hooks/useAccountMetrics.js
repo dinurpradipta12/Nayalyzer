@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { accountData, followerGrowthTrend, engagementTrend, reachTrend, kpiData } from '../data/mockData';
+import { withTimeout } from '../lib/async';
 
 /**
  * Returns account metrics for the active workspace.
@@ -26,18 +27,18 @@ export function useAccountMetrics(workspaceId) {
       setLoading(true);
       try {
         // Fetch social accounts
-        const { data: accounts, error: accErr } = await supabase
+        const { data: accounts, error: accErr } = await withTimeout(supabase
           .from('social_accounts')
           .select('*')
-          .eq('workspace_id', workspaceId);
+          .eq('workspace_id', workspaceId), 6000, 'Accounts request timeout');
         if (accErr) throw accErr;
 
         // Fetch latest metrics per account
-        const { data: metrics, error: metErr } = await supabase
+        const { data: metrics, error: metErr } = await withTimeout(supabase
           .from('account_metrics')
           .select('*, social_accounts(platform, username, account_name)')
           .eq('workspace_id', workspaceId)
-          .order('metric_date', { ascending: false });
+          .order('metric_date', { ascending: false }), 7000, 'Metrics request timeout');
         if (metErr) throw metErr;
 
         if (!metrics?.length && !accounts?.length) {

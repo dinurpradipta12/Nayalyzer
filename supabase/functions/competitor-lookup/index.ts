@@ -288,6 +288,7 @@ function buildResult(username: string, u: any, source: string) {
     thumbnail_url: e.node?.thumbnail_src ?? e.node?.display_url ?? null,
     permalink:     e.node?.shortcode ? `https://www.instagram.com/p/${e.node.shortcode}/` : null,
     media_type:    e.node?.__typename ?? 'IMAGE',
+    caption:       e.node?.edge_media_to_caption?.edges?.[0]?.node?.text ?? '',
     likes:         e.node?.edge_liked_by?.count ?? 0,
     comments:      e.node?.edge_media_to_comment?.count ?? 0,
   }));

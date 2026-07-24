@@ -1,0 +1,4 @@
+project_id = "cmgtaytmmwgdglmwdxrv"
+
+[functions.platform-oauth]
+verify_jwt = false

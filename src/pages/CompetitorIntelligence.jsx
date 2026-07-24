@@ -13,11 +13,11 @@ import { COMPETITOR_CSV_FIELDS, COMPETITOR_CSV_TEMPLATE } from '../lib/competito
 import Papa from 'papaparse';
 
 const TABS = [
-  { id: 'overview',   label: 'Overview',         icon: BarChart2  },
-  { id: 'comparison', label: 'Comparison',        icon: TrendingUp },
-  { id: 'content',    label: 'Content Benchmark', icon: FileText   },
-  { id: 'gap',        label: 'Gap Analysis',      icon: Target     },
-  { id: 'ai',         label: 'AI Recommendation', icon: Sparkles   },
+  { id: 'overview',   label: 'Ringkasan',          icon: BarChart2  },
+  { id: 'comparison', label: 'Benchmark',          icon: TrendingUp },
+  { id: 'content',    label: 'Konten Kompetitor',  icon: FileText   },
+  { id: 'gap',        label: 'Gap & Action Plan',  icon: Target     },
+  { id: 'ai',         label: 'Rekomendasi AI',     icon: Sparkles   },
 ];
 
 const PLATFORM_COLORS = {
@@ -75,15 +75,125 @@ function ScoreRing({ score, size = 56 }) {
 }
 
 // ── MiniBar ───────────────────────────────────────────────────
-function MiniBar({ value, max = 100, color = 'bg-violet-400' }) {
+function MiniBar({ value, max = 100, color = 'bg-violet-400', showValue = true }) {
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, (value / max) * 100)}%` }} />
       </div>
-      <span className="text-xs text-gray-500 w-8 text-right">{value}</span>
+      {showValue && <span className="text-xs text-gray-500 w-8 text-right">{value}</span>}
     </div>
   );
+}
+
+function fmtCompact(n) {
+  if (n == null || Number.isNaN(Number(n))) return '–';
+  const num = Number(n);
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(num >= 10_000 ? 0 : 1)}K`;
+  return num.toLocaleString('id-ID');
+}
+
+function avg(list, getter) {
+  if (!list.length) return 0;
+  return list.reduce((sum, item) => sum + (Number(getter(item)) || 0), 0) / list.length;
+}
+
+function metricLeader(accounts, key) {
+  return accounts
+    .filter(Boolean)
+    .sort((a, b) => (Number(b[key]) || 0) - (Number(a[key]) || 0))[0];
+}
+
+function inferHookStyle(row) {
+  const explicit = String(row.hook_style || '').trim();
+  if (explicit && explicit !== '-') return { label: explicit, inferred: false };
+
+  const text = `${row.title || ''} ${row.caption || ''}`.toLowerCase();
+  if (!text.trim() || /^post\s+\d+/i.test(String(row.title || ''))) return { label: 'Belum terbaca', inferred: true };
+  if (/[?？]/.test(text) || /\b(kenapa|gimana|bagaimana|apa|siapa|kapan|pernah)\b/.test(text)) return { label: 'Question', inferred: true };
+  if (/\b(tips|cara|step|langkah|tutorial|guide|panduan|checklist)\b/.test(text)) return { label: 'Tutorial / Tips', inferred: true };
+  if (/\b(masalah|salah|error|gagal|bingung|susah|jangan|hindari|solusi)\b/.test(text)) return { label: 'Problem-Solution', inferred: true };
+  if (/\b(\d+%|\d+x|data|riset|statistik|angka|fakta)\b/.test(text)) return { label: 'Stat/Data', inferred: true };
+  if (/\b(cerita|story|pengalaman|journey|dulu|akhirnya|behind)\b/.test(text)) return { label: 'Story', inferred: true };
+  if (/\b(trend|viral|rame|lagi naik|fyp|algoritma)\b/.test(text)) return { label: 'Trend', inferred: true };
+  return { label: 'Statement / Insight', inferred: true };
+}
+
+function StatCard({ label, value, icon: Icon, tone = 'violet', helper }) {
+  const tones = {
+    violet: 'bg-violet-50 text-violet-600',
+    blue: 'bg-blue-50 text-blue-600',
+    emerald: 'bg-emerald-50 text-emerald-600',
+    amber: 'bg-amber-50 text-amber-600',
+    rose: 'bg-rose-50 text-rose-600',
+  };
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 min-w-0">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400 mb-1">{label}</p>
+          <p className="text-xl font-bold text-gray-800 leading-tight break-words">{value}</p>
+          {helper && <p className="text-xs text-gray-400 mt-1 leading-relaxed">{helper}</p>}
+        </div>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${tones[tone] ?? tones.violet}`}>
+          <Icon size={17} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ title, desc, action }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+      <div>
+        <h3 className="font-bold text-gray-800">{title}</h3>
+        {desc && <p className="text-xs text-gray-400 mt-0.5">{desc}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function AccountPillSelector({ competitors, selected, setSelected, prefix = '' }) {
+  if (!competitors.length) return null;
+  const selectedId = selected ?? competitors[0]?.id;
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {competitors.map(c => (
+        <button key={c.id} onClick={() => setSelected(c.id)}
+          className={`px-3 py-2 rounded-xl text-sm font-semibold whitespace-nowrap border transition-colors ${
+            selectedId === c.id
+              ? 'bg-violet-500 border-violet-500 text-white shadow-sm'
+              : 'bg-white border-gray-100 text-gray-500 hover:text-violet-600 hover:border-violet-200'
+          }`}>
+          {prefix}{c.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function EmptyCompetitorState({ onAdd }) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+      <Users size={36} className="mx-auto text-gray-200 mb-3" />
+      <p className="font-semibold text-gray-700">Belum ada kompetitor</p>
+      <p className="text-sm text-gray-400 mt-1 mb-4">Tambahkan akun kompetitor agar benchmark, gap, dan rekomendasi bisa dihitung.</p>
+      <button onClick={onAdd}
+        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-violet-500 text-white text-sm font-semibold hover:bg-violet-600">
+        <Plus size={15} /> Tambah Kompetitor
+      </button>
+    </div>
+  );
+}
+
+function scoreTone(score) {
+  if (score >= 80) return 'emerald';
+  if (score >= 60) return 'blue';
+  if (score >= 40) return 'amber';
+  return 'rose';
 }
 
 // ── CompetitorCard (Overview) ─────────────────────────────────
@@ -239,6 +349,7 @@ function AddContentModal({ competitor, onClose, onImport }) {
   const [form, setForm] = useState({
     title: '', content_type: 'Reels', content_pillar: 'Edukasi',
     hook_style: 'Question', cta_style: 'Follow',
+    content_url: '', caption: '',
     likes: '', comments: '', shares: '', saves: '', views: '',
     published_at: '', is_top_performer: false,
   });
@@ -250,6 +361,7 @@ function AddContentModal({ competitor, onClose, onImport }) {
       complete: ({ data }) => {
         const mapped = data.map(r => ({
           title: r.title ?? r.caption ?? '',
+          caption: r.caption ?? '',
           content_type: r.content_type ?? 'Other',
           content_pillar: r.content_pillar ?? '',
           hook_style: r.hook_style ?? '',
@@ -313,9 +425,22 @@ function AddContentModal({ competitor, onClose, onImport }) {
         {tab === 'manual' ? (
           <div className="p-6 space-y-3">
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Link Konten</label>
+              <input className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300"
+                placeholder="https://instagram.com/p/..."
+                value={form.content_url} onChange={e => setForm(p => ({ ...p, content_url: e.target.value }))} />
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Judul / Caption</label>
               <input className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300"
                 placeholder="5 Tips Desain Logo..." value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Caption Lengkap</label>
+              <textarea rows={3}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 resize-none"
+                placeholder="Paste caption lengkap konten di sini agar Hook / Angle bisa dianalisa otomatis."
+                value={form.caption} onChange={e => setForm(p => ({ ...p, caption: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
@@ -391,207 +516,189 @@ function AddContentModal({ competitor, onClose, onImport }) {
 
 // ── Tab: Overview ─────────────────────────────────────────────
 function TabOverview({ competitors, scores, userAccount, selected, onSelect, onRemove, onAdd }) {
+  if (!competitors.length) return <EmptyCompetitorState onAdd={onAdd} />;
+
+  const ranked = [...competitors].sort((a, b) => (scores[b.id]?.overall ?? 0) - (scores[a.id]?.overall ?? 0));
+  const topThreat = ranked[0];
+  const fastMover = [...competitors].sort((a, b) => (b.followerGrowthRate ?? 0) - (a.followerGrowthRate ?? 0))[0];
+  const bestEngagement = [...competitors].sort((a, b) => (b.engagementRate ?? 0) - (a.engagementRate ?? 0))[0];
+  const avgFollowers = avg(competitors, c => c.followers);
+  const avgER = avg(competitors, c => c.engagementRate);
+  const avgFreq = avg(competitors, c => parseFrequency(c.postingFrequencyNum ?? c.postingFrequency));
+
   return (
-    <div className="space-y-6">
-      {/* Summary stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Kompetitor', value: competitors.length, icon: Users, color: 'text-violet-600', bg: 'bg-violet-50' },
-          { label: 'Avg Followers', value: (competitors.reduce((s, c) => s + (c.followers ?? 0), 0) / (competitors.length || 1)).toLocaleString('id-ID', { maximumFractionDigits: 0 }), icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Avg Eng. Rate', value: `${(competitors.reduce((s, c) => s + (c.engagementRate ?? 0), 0) / (competitors.length || 1)).toFixed(1)}%`, icon: Heart, color: 'text-pink-600', bg: 'bg-pink-50' },
-          { label: 'Avg Post/Minggu', value: `${(competitors.reduce((s, c) => s + parseFrequency(c.postingFrequency), 0) / (competitors.length || 1)).toFixed(1)}x`, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="bg-white rounded-2xl p-4 border border-gray-100">
-            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center mb-3`}><Icon size={16} className={color} /></div>
-            <p className="text-xl font-bold text-gray-800">{value}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{label}</p>
-          </div>
-        ))}
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard label="Total kompetitor" value={competitors.length} icon={Users} tone="violet" helper="Akun aktif dipantau" />
+        <StatCard label="Rata-rata followers" value={fmtCompact(avgFollowers)} icon={TrendingUp} tone="blue" helper="Benchmark ukuran audience" />
+        <StatCard label="Rata-rata ER" value={`${avgER.toFixed(1)}%`} icon={Heart} tone="emerald" helper="Kualitas interaksi pasar" />
+        <StatCard label="Rata-rata posting" value={`${avgFreq.toFixed(1)}x`} icon={Clock} tone="amber" helper="Frekuensi per minggu" />
       </div>
 
-      {/* Competitor cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {competitors.map(c => (
-          <CompetitorCard key={c.id} competitor={c} scores={scores[c.id] ?? { overall: 0 }}
-            isSelected={selected?.id === c.id} onClick={() => onSelect(c)} onRemove={onRemove} />
-        ))}
-      </div>
-
-      {/* Score overview table */}
-      {competitors.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50">
-            <h3 className="font-semibold text-gray-700 text-sm">Perbandingan Kompetitor</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[11px]">
-                  <th className="text-left px-5 py-3">Kompetitor</th>
-                  <th className="text-left px-3 py-3">Platform</th>
-                  <th className="text-right px-3 py-3">Followers</th>
-                  <th className="text-right px-3 py-3">Eng. Rate</th>
-                  <th className="text-right px-3 py-3">Post/Minggu</th>
-                  <th className="text-center px-3 py-3">Format Utama</th>
-                  <th className="text-center px-3 py-3">Score</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {competitors.map(c => {
-                  const s = scores[c.id] ?? {};
-                  const sl = scoreLabel(s.overall ?? 0);
-                  return (
-                    <tr key={c.id} onClick={() => onSelect(c)}
-                      className="cursor-pointer transition-colors hover:bg-gray-50">
-                      <td className="px-5 py-3 font-medium text-gray-700">{c.name}</td>
-                      <td className="px-3 py-3 text-gray-500">{c.platform ?? '–'}</td>
-                      <td className="px-3 py-3 text-right font-semibold text-gray-700">
-                        {c.followers ? c.followers.toLocaleString('id-ID') : '–'}
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        <span className={`font-semibold ${(c.engagementRate ?? 0) >= 3 ? 'text-emerald-600' : (c.engagementRate ?? 0) >= 1 ? 'text-amber-600' : 'text-red-500'}`}>
-                          {c.engagementRate != null ? `${c.engagementRate}%` : '–'}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-right text-gray-600">
-                        {(c.postingFrequencyNum ?? c.postingFrequency) ? `${c.postingFrequencyNum ?? c.postingFrequency}×` : '–'}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        {c.topContentType
-                          ? <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${CONTENT_TYPE_COLORS[c.topContentType] ?? 'bg-gray-100 text-gray-600'}`}>{c.topContentType}</span>
-                          : <span className="text-gray-300">–</span>}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <span className={`inline-flex items-center justify-center w-8 h-6 rounded-md text-[11px] font-bold ${sl.bg} ${sl.color}`}>{s.overall ?? '–'}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {userAccount && (
-                  <tr className="bg-emerald-50/40 hover:bg-emerald-50">
-                    <td className="px-5 py-3 font-medium text-gray-700 flex items-center gap-2">
-                      <span className="text-[10px] bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded font-bold">KAMU</span>
-                      {userAccount.name}
-                    </td>
-                    <td className="px-3 py-3 text-gray-500">{userAccount.platform ?? '–'}</td>
-                    <td className="px-3 py-3 text-right font-semibold text-gray-700">
-                      {userAccount.followers ? userAccount.followers.toLocaleString('id-ID') : '–'}
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      <span className={`font-semibold ${(userAccount.engagementRate ?? 0) >= 3 ? 'text-emerald-600' : (userAccount.engagementRate ?? 0) >= 1 ? 'text-amber-600' : 'text-red-500'}`}>
-                        {userAccount.engagementRate != null ? `${userAccount.engagementRate}%` : '–'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-right text-gray-600">
-                      {userAccount.postingFrequency ? `${userAccount.postingFrequency}×` : '–'}
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      {userAccount.topContentType
-                        ? <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${CONTENT_TYPE_COLORS[userAccount.topContentType] ?? 'bg-gray-100 text-gray-600'}`}>{userAccount.topContentType}</span>
-                        : <span className="text-gray-300">–</span>}
-                    </td>
-                    <td className="px-3 py-3 text-center text-gray-300 text-[11px]">–</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <SectionHeader
+            title="Peta Kompetitor"
+            desc="Klik akun untuk melihat score dan posisi relatifnya."
+            action={
+              <button onClick={onAdd}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-500 text-white text-xs font-semibold hover:bg-violet-600">
+                <Plus size={14} /> Tambah
+              </button>
+            }
+          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {ranked.map(c => (
+              <CompetitorCard key={c.id} competitor={c} scores={scores[c.id] ?? { overall: 0 }}
+                isSelected={selected?.id === c.id} onClick={() => onSelect(c)} onRemove={onRemove} />
+            ))}
           </div>
         </div>
-      )}
+
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <SectionHeader title="Prioritas Minggu Ini" desc="Fokus pada akun dan metrik paling berdampak." />
+            <div className="space-y-3">
+              {[
+                { title: 'Ancaman utama', value: topThreat?.name, desc: `Score ${scores[topThreat?.id]?.overall ?? 0}/100`, icon: Trophy, tone: scoreTone(scores[topThreat?.id]?.overall ?? 0) },
+                { title: 'Engagement tertinggi', value: bestEngagement?.name, desc: `${(bestEngagement?.engagementRate ?? 0).toFixed(1)}% ER`, icon: Activity, tone: 'emerald' },
+                { title: 'Growth tercepat', value: fastMover?.name, desc: `${(fastMover?.followerGrowthRate ?? 0).toFixed(1)}%/bulan`, icon: Zap, tone: 'blue' },
+              ].map(item => (
+                <div key={item.title} className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${item.tone === 'emerald' ? 'bg-emerald-50 text-emerald-600' : item.tone === 'blue' ? 'bg-blue-50 text-blue-600' : item.tone === 'amber' ? 'bg-amber-50 text-amber-600' : item.tone === 'rose' ? 'bg-rose-50 text-rose-600' : 'bg-violet-50 text-violet-600'}`}>
+                    <item.icon size={16} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-gray-400">{item.title}</p>
+                    <p className="text-sm font-bold text-gray-800 truncate">{item.value ?? '–'}</p>
+                    <p className="text-xs text-gray-500">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {selected && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <SectionHeader title="Snapshot Terpilih" desc={selected.username} />
+              <div className="flex items-center gap-4 mb-4">
+                <ScoreRing score={scores[selected.id]?.overall ?? 0} size={72} />
+                <div>
+                  <p className="font-bold text-gray-800">{selected.name}</p>
+                  <p className="text-xs text-gray-400">{selected.platform} · {selected.topContentType ?? 'Format belum diketahui'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-xl bg-gray-50 p-3"><p className="text-gray-400">Followers</p><p className="font-bold text-gray-800">{fmtCompact(selected.followers)}</p></div>
+                <div className="rounded-xl bg-gray-50 p-3"><p className="text-gray-400">ER</p><p className="font-bold text-gray-800">{(selected.engagementRate ?? 0).toFixed(1)}%</p></div>
+                <div className="rounded-xl bg-gray-50 p-3"><p className="text-gray-400">Posting</p><p className="font-bold text-gray-800">{parseFrequency(selected.postingFrequencyNum ?? selected.postingFrequency)}x/mgg</p></div>
+                <div className="rounded-xl bg-gray-50 p-3"><p className="text-gray-400">Pillar</p><p className="font-bold text-gray-800 truncate">{selected.topContentPillar ?? '–'}</p></div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
 // ── Tab: Comparison ───────────────────────────────────────────
-function TabComparison({ competitors, userAccount, scores }) {
-  const DIMENSIONS = [
-    { key: 'followers',       label: 'Followers',       fmt: v => v?.toLocaleString('id-ID') ?? '0', max: null },
-    { key: 'engagementRate',  label: 'Engagement Rate', fmt: v => `${(v ?? 0).toFixed(1)}%`, max: 10 },
-    { key: 'postingFrequencyNum', label: 'Post/Minggu', fmt: v => `${v ?? 0}x`, max: 14 },
-    { key: 'avgLikes',        label: 'Avg Likes',       fmt: v => v?.toLocaleString('id-ID') ?? '0', max: null },
-    { key: 'avgComments',     label: 'Avg Comments',    fmt: v => v?.toLocaleString('id-ID') ?? '0', max: null },
+function TabComparison({ competitors, userAccount, scores, onAdd }) {
+  if (!competitors.length) return <EmptyCompetitorState onAdd={onAdd} />;
+
+  const dimensions = [
+    { key: 'followers', label: 'Audience Size', fmt: fmtCompact, max: null },
+    { key: 'engagementRate', label: 'Engagement Rate', fmt: v => `${(v ?? 0).toFixed(1)}%`, max: 10 },
+    { key: 'postingFrequencyNum', label: 'Posting Pace', fmt: v => `${parseFrequency(v)}x/mgg`, max: 14 },
+    { key: 'avgLikes', label: 'Avg Likes', fmt: fmtCompact, max: null },
+    { key: 'avgComments', label: 'Avg Comments', fmt: fmtCompact, max: null },
+  ];
+  const allAccounts = [{ ...userAccount, name: 'Akun kamu', id: 'user', isUser: true }, ...competitors].filter(Boolean);
+  const scoreDims = [
+    ['growth', 'Growth'], ['engagement', 'Engagement'], ['consistency', 'Konsistensi'],
+    ['quality', 'Kualitas'], ['virality', 'Viralitas'], ['differentiation', 'Diferensiasi'],
   ];
 
-  const allAccounts = [{ ...userAccount, name: 'Kamu', id: 'user', isUser: true }, ...competitors];
-  const maxVals = {};
-  DIMENSIONS.forEach(d => {
-    const rawMax = Math.max(...allAccounts.map(a => parseFloat(a[d.key] ?? 0) || 0)) || 1;
-    maxVals[d.key] = d.max != null ? d.max : rawMax;
-  });
-
-  const SCORE_DIMS = ['growth','engagement','consistency','quality','virality','differentiation'];
-  const SCORE_LABELS = ['Growth','Engagement','Konsistensi','Kualitas','Viralitas','Diferensiasi'];
-
   return (
-    <div className="space-y-6">
-      {/* Bar comparison */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h3 className="font-semibold text-gray-700 mb-4">Perbandingan Metrik Utama</h3>
-        <div className="space-y-5">
-          {DIMENSIONS.map(dim => (
-            <div key={dim.key}>
-              <p className="text-xs font-medium text-gray-500 mb-2">{dim.label}</p>
-              <div className="space-y-1.5">
-                {allAccounts.map((a, i) => {
-                  const val = parseFloat(a[dim.key] ?? 0) || 0;
-                  const pct = Math.min(100, (val / maxVals[dim.key]) * 100);
-                  const colors = a.isUser
-                    ? ['bg-violet-500', 'text-violet-700']
-                    : ['bg-blue-400', 'text-blue-700'];
-                  return (
-                    <div key={a.id} className="flex items-center gap-3">
-                      <span className="text-xs text-gray-500 w-32 truncate">{a.name}</span>
-                      <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden relative">
-                        <div className={`h-full rounded-full ${colors[0]} flex items-center justify-end pr-2 transition-all`}
-                          style={{ width: `${pct}%` }}>
-                          {pct > 20 && <span className="text-[10px] text-white font-semibold">{dim.fmt(val)}</span>}
-                        </div>
-                        {pct <= 20 && <span className={`absolute left-[calc(${pct}%+6px)] top-1/2 -translate-y-1/2 text-[10px] font-semibold ${colors[1]}`}>{dim.fmt(val)}</span>}
-                      </div>
-                    </div>
-                  );
-                })}
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { label: 'Leader followers', item: metricLeader(allAccounts, 'followers'), metric: 'followers', icon: Users },
+          { label: 'Leader engagement', item: metricLeader(allAccounts, 'engagementRate'), metric: 'engagementRate', icon: Heart },
+          { label: 'Leader posting', item: metricLeader(allAccounts, 'postingFrequencyNum'), metric: 'postingFrequencyNum', icon: Clock },
+        ].map(card => (
+          <div key={card.label} className="bg-white rounded-2xl border border-gray-100 p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center"><card.icon size={16} /></div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400">{card.label}</p>
+                <p className="font-bold text-gray-800 truncate">{card.item?.name ?? '–'}</p>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
-      {/* Score comparison */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h3 className="font-semibold text-gray-700 mb-4">Score Comparison per Kompetitor</h3>
-        <div className="space-y-4">
-          {competitors.map(c => {
-            const s = scores[c.id] ?? {};
-            return (
-              <div key={c.id} className="border border-gray-100 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${PLATFORM_COLORS[c.platform] ?? 'from-gray-400 to-gray-600'} flex items-center justify-center text-white text-xs font-bold`}>
-                    {(c.name?.[0] ?? '?').toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-700 text-sm">{c.name}</p>
-                    <p className="text-xs text-gray-400">{c.username}</p>
-                  </div>
-                  <div className="ml-auto flex items-center gap-2">
-                    <ScoreRing score={s.overall ?? 0} size={40} />
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <SectionHeader title="Benchmark Metrik" desc="Bar ungu adalah akun kamu, biru adalah kompetitor." />
+          <div className="space-y-5">
+            {dimensions.map(dim => {
+              const rawMax = Math.max(...allAccounts.map(a => Number(a[dim.key]) || 0), 1);
+              const max = dim.max ?? rawMax;
+              return (
+                <div key={dim.key}>
+                  <p className="text-xs font-bold text-gray-500 mb-2">{dim.label}</p>
+                  <div className="space-y-2">
+                    {allAccounts.map(account => {
+                      const val = dim.key === 'postingFrequencyNum'
+                        ? parseFrequency(account.postingFrequencyNum ?? account.postingFrequency)
+                        : Number(account[dim.key]) || 0;
+                      const pct = Math.min(100, (val / max) * 100);
+                      return (
+                        <div key={account.id} className="grid grid-cols-[120px_minmax(0,1fr)_70px] items-center gap-3">
+                          <span className="text-xs text-gray-500 truncate">{account.name}</span>
+                          <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${account.isUser ? 'bg-violet-500' : 'bg-blue-400'}`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs font-bold text-gray-700 text-right">{dim.fmt(val)}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {SCORE_DIMS.map((dim, i) => {
-                    const v = s[dim] ?? 0;
-                    const { color, bg } = scoreLabel(v);
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <SectionHeader title="Score Matrix" desc="Melihat kekuatan kompetitor per dimensi." />
+          <div className="space-y-4">
+            {competitors.map(c => (
+              <div key={c.id} className="rounded-2xl border border-gray-100 p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <ScoreRing score={scores[c.id]?.overall ?? 0} size={46} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-800 truncate">{c.name}</p>
+                    <p className="text-xs text-gray-400">{scoreLabel(scores[c.id]?.overall ?? 0).label}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {scoreDims.map(([key, label]) => {
+                    const val = scores[c.id]?.[key] ?? 0;
+                    const style = scoreLabel(val);
                     return (
-                      <div key={dim} className={`rounded-lg px-2 py-1.5 ${bg}`}>
-                        <p className="text-[10px] text-gray-500">{SCORE_LABELS[i]}</p>
-                        <p className={`text-sm font-bold ${color}`}>{v}</p>
+                      <div key={key} className={`rounded-xl px-3 py-2 ${style.bg}`}>
+                        <p className="text-[10px] text-gray-500">{label}</p>
+                        <p className={`text-sm font-bold ${style.color}`}>{val}</p>
                       </div>
                     );
                   })}
                 </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -599,291 +706,318 @@ function TabComparison({ competitors, userAccount, scores }) {
 }
 
 // ── Tab: Content Benchmark ────────────────────────────────────
-function TabContent({ competitors, contents, onAddContent }) {
-  const [selected, setSelected] = useState(competitors[0]?.id ?? null);
-  const comp = competitors.find(c => c.id === selected);
-  const rows = contents[selected] ?? [];
+function TabContent({ competitors, contents, onAddContent, onAdd }) {
+  const [selected, setSelected] = useState(null);
+  const selectedId = selected ?? competitors[0]?.id;
+  const comp = competitors.find(c => c.id === selectedId);
+  const rows = contents[selectedId] ?? [];
 
   const formatDist = useMemo(() => {
     const dist = {};
-    rows.forEach(r => { dist[r.content_type] = (dist[r.content_type] ?? 0) + 1; });
+    rows.forEach(r => { dist[r.content_type || 'Other'] = (dist[r.content_type || 'Other'] ?? 0) + 1; });
     return Object.entries(dist).sort((a, b) => b[1] - a[1]);
   }, [rows]);
 
   const hookDist = useMemo(() => {
     const dist = {};
-    rows.forEach(r => { if (r.hook_style) dist[r.hook_style] = (dist[r.hook_style] ?? 0) + 1; });
+    rows.forEach(r => {
+      const hook = inferHookStyle(r).label;
+      if (hook && hook !== 'Belum terbaca') dist[hook] = (dist[hook] ?? 0) + 1;
+    });
     return Object.entries(dist).sort((a, b) => b[1] - a[1]);
   }, [rows]);
 
-  const avgER = rows.length ? (rows.reduce((s, r) => s + (parseFloat(r.estimated_engagement_rate) || 0), 0) / rows.length).toFixed(1) : '–';
-  const topPerf = rows.filter(r => r.is_top_performer);
+  if (!competitors.length) return <EmptyCompetitorState onAdd={onAdd} />;
+
+  const avgER = rows.length ? avg(rows, r => r.estimated_engagement_rate) : 0;
+  const topPerf = rows.filter(r => r.is_top_performer || Number(r.estimated_engagement_rate) >= 3);
+  const topRows = [...rows].sort((a, b) => (b.estimated_engagement_rate ?? 0) - (a.estimated_engagement_rate ?? 0)).slice(0, 8);
+  const erBuckets = [
+    { label: 'Viral', desc: '>=10% ER', color: 'bg-emerald-500', count: rows.filter(r => r.estimated_engagement_rate >= 10).length },
+    { label: 'Bagus', desc: '3-10% ER', color: 'bg-blue-400', count: rows.filter(r => r.estimated_engagement_rate >= 3 && r.estimated_engagement_rate < 10).length },
+    { label: 'Sedang', desc: '1-3% ER', color: 'bg-amber-400', count: rows.filter(r => r.estimated_engagement_rate >= 1 && r.estimated_engagement_rate < 3).length },
+    { label: 'Rendah', desc: '<1% ER', color: 'bg-red-300', count: rows.filter(r => r.estimated_engagement_rate < 1).length },
+  ];
 
   return (
     <div className="space-y-5">
-      {/* Selector */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {competitors.map(c => (
-          <button key={c.id} onClick={() => setSelected(c.id)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${selected === c.id ? 'bg-violet-100 text-violet-700' : 'bg-white border border-gray-200 text-gray-600 hover:border-violet-200'}`}>
-            {c.name} <span className="text-xs opacity-60">({contents[c.id]?.length ?? 0})</span>
-          </button>
-        ))}
-      </div>
+      <AccountPillSelector competitors={competitors} selected={selectedId} setSelected={setSelected} />
 
       {comp && (
-        <>
-          {/* Stats row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: 'Total Konten', value: rows.length },
-              { label: 'Avg ER', value: `${avgER}%` },
-              { label: 'Top Performer', value: topPerf.length },
-              { label: 'Format Utama', value: formatDist[0]?.[0] ?? '–' },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-white rounded-xl border border-gray-100 p-3">
-                <p className="text-lg font-bold text-gray-800">{value}</p>
-                <p className="text-xs text-gray-400">{label}</p>
+        <div className="grid grid-cols-1 2xl:grid-cols-[360px_minmax(0,1fr)] gap-4">
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <SectionHeader
+                title={comp.name}
+                desc="Benchmark konten kompetitor"
+                action={
+                  <button onClick={() => onAddContent(comp)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-500 text-white text-xs font-semibold hover:bg-violet-600">
+                    <Plus size={13} /> Konten
+                  </button>
+                }
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-1 gap-2">
+                {[
+                  { label: 'Total konten', value: rows.length, icon: FileText, tone: 'violet' },
+                  { label: 'Avg ER', value: `${avgER.toFixed(1)}%`, icon: Activity, tone: 'emerald' },
+                  { label: 'Top performer', value: topPerf.length, icon: Trophy, tone: 'amber' },
+                  { label: 'Format utama', value: formatDist[0]?.[0] ?? '–', icon: Bookmark, tone: 'blue' },
+                ].map(item => (
+                  <div key={item.label} className="rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-gray-400">{item.label}</p>
+                      <p className="text-lg font-bold text-gray-800 leading-tight break-words">{item.value}</p>
+                    </div>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      item.tone === 'emerald' ? 'bg-emerald-50 text-emerald-600' :
+                      item.tone === 'amber' ? 'bg-amber-50 text-amber-600' :
+                      item.tone === 'blue' ? 'bg-blue-50 text-blue-600' :
+                      'bg-violet-50 text-violet-600'
+                    }`}>
+                      <item.icon size={17} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <SectionHeader title="Distribusi Format" desc="Apa yang paling sering mereka pakai." />
+              {formatDist.length ? formatDist.map(([type, cnt]) => (
+                <div key={type} className="mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${CONTENT_TYPE_COLORS[type] ?? 'bg-gray-100 text-gray-700'}`}>{type}</span>
+                    <span className="text-xs font-bold text-gray-600">{cnt}</span>
+                  </div>
+                  <MiniBar value={cnt} max={formatDist[0]?.[1] ?? 1} color="bg-violet-400" showValue={false} />
+                </div>
+              )) : <p className="text-sm text-gray-400">Belum ada data konten.</p>}
+            </div>
           </div>
 
-          {/* Distribution */}
-          {(() => {
-            const hasHookData = hookDist.some(([h]) => h && h !== '-');
-            const erBuckets = [
-              { label: 'Viral (≥10%)',   color: 'bg-emerald-500', count: rows.filter(r => r.estimated_engagement_rate >= 10).length },
-              { label: 'Bagus (3–10%)',  color: 'bg-blue-400',    count: rows.filter(r => r.estimated_engagement_rate >= 3 && r.estimated_engagement_rate < 10).length },
-              { label: 'Sedang (1–3%)',  color: 'bg-amber-400',   count: rows.filter(r => r.estimated_engagement_rate >= 1 && r.estimated_engagement_rate < 3).length },
-              { label: 'Rendah (<1%)',   color: 'bg-red-300',     count: rows.filter(r => r.estimated_engagement_rate < 1).length },
-            ].filter(b => b.count > 0);
-            return (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-gray-100 p-5">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Distribusi Format</h4>
-                  {formatDist.length ? formatDist.map(([type, cnt]) => (
-                    <div key={type} className="flex items-center gap-3 mb-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-24 text-center flex-shrink-0 ${CONTENT_TYPE_COLORS[type] ?? 'bg-gray-100 text-gray-700'}`}>{type}</span>
-                      <MiniBar value={cnt} max={formatDist[0]?.[1] ?? 1} color="bg-violet-400" />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <SectionHeader title="Hook / Angle" desc="Pola pembuka konten dari CSV atau hasil deteksi otomatis." />
+                {hookDist.length ? hookDist.map(([hook, cnt]) => (
+                  <div key={hook} className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-600 truncate">{hook}</span>
+                      <span className="text-xs font-bold text-gray-600">{cnt}</span>
                     </div>
-                  )) : <p className="text-sm text-gray-400">Belum ada data konten</p>}
-                </div>
-                <div className="bg-white rounded-2xl border border-gray-100 p-5">
-                  {hasHookData ? (
-                    <>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3">Hook Style</h4>
-                      {hookDist.map(([hook, cnt]) => (
-                        <div key={hook} className="flex items-center gap-3 mb-2">
-                          <span className="text-xs text-gray-600 w-28 truncate flex-shrink-0">{hook}</span>
-                          <MiniBar value={cnt} max={hookDist[0]?.[1] ?? 1} color="bg-blue-400" />
-                        </div>
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3">Distribusi Engagement Rate</h4>
-                      {erBuckets.length ? erBuckets.map(b => (
-                        <div key={b.label} className="flex items-center gap-3 mb-2">
-                          <span className="text-xs text-gray-600 w-28 flex-shrink-0">{b.label}</span>
-                          <MiniBar value={b.count} max={rows.length} color={b.color} />
-                        </div>
-                      )) : <p className="text-sm text-gray-400">Belum ada data</p>}
-                    </>
-                  )}
+                    <MiniBar value={cnt} max={hookDist[0]?.[1] ?? 1} color="bg-blue-400" showValue={false} />
+                  </div>
+                )) : <p className="text-sm text-gray-400">Hook belum terbaca karena title/caption tidak cukup deskriptif.</p>}
+                <div className="mt-4 rounded-xl bg-blue-50 border border-blue-100 px-3 py-2">
+                  <p className="text-xs font-semibold text-blue-700 mb-1">Cara kerja</p>
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    Jika `hook_style` kosong, sistem membaca title/caption lalu mengelompokkan pola pembuka seperti pertanyaan, tips/tutorial, problem-solution, data, story, atau trend.
+                  </p>
                 </div>
               </div>
-            );
-          })()}
 
-          {/* Content grid */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-gray-700">Konten ({rows.length})</h4>
-              <button onClick={() => onAddContent(comp)}
-                className="flex items-center gap-1.5 text-xs text-violet-600 font-medium hover:text-violet-700">
-                <Plus size={13} /> Tambah Konten
-              </button>
-            </div>
-            {rows.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-                <FileText size={32} className="mx-auto text-gray-200 mb-2" />
-                <p className="text-sm text-gray-400">Belum ada data konten kompetitor.</p>
-                <button onClick={() => onAddContent(comp)} className="mt-3 text-sm text-violet-600 font-medium hover:text-violet-700">
-                  + Tambah konten pertama
-                </button>
+              <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                <SectionHeader title="Kualitas ER" desc="Distribusi performa konten." />
+                {erBuckets.map(bucket => (
+                  <div key={bucket.label} className="mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-600">{bucket.label} <span className="font-normal text-gray-400">({bucket.desc})</span></span>
+                      <span className="text-xs font-bold text-gray-600">{bucket.count}</span>
+                    </div>
+                    <MiniBar value={bucket.count} max={Math.max(rows.length, 1)} color={bucket.color} showValue={false} />
+                  </div>
+                ))}
               </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {rows.slice(0, 12).map(row => {
-                  const erColor = row.estimated_engagement_rate >= 3 ? 'text-emerald-600' : row.estimated_engagement_rate >= 1 ? 'text-amber-600' : 'text-violet-600';
-                  return (
-                    <a key={row.id} href={row.permalink ?? '#'} target="_blank" rel="noopener noreferrer"
-                      className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-md hover:border-violet-200 transition-all group">
-                      {/* Thumbnail */}
-                      <div className="aspect-square bg-gray-100 relative overflow-hidden">
-                        {row.thumbnail_url ? (
-                          <img src={row.thumbnail_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <FileText size={24} className="text-gray-300" />
-                          </div>
-                        )}
-                        {/* Overlay badges */}
-                        <div className="absolute top-2 left-2 flex gap-1">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium backdrop-blur-sm bg-white/80 ${CONTENT_TYPE_COLORS[row.content_type] ?? 'text-gray-700'}`}>
-                            {row.content_type}
-                          </span>
-                          {row.is_top_performer && <span className="text-[10px] bg-amber-400/90 text-white px-1.5 py-0.5 rounded-md font-medium">⭐ Top</span>}
-                        </div>
-                        {/* ER overlay */}
-                        {row.estimated_engagement_rate > 0 && (
-                          <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-0.5">
-                            <span className={`text-xs font-bold ${erColor}`}>{parseFloat(row.estimated_engagement_rate).toFixed(1)}%</span>
-                          </div>
-                        )}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-50">
+                <SectionHeader title="Top Konten untuk Ditiru Polanya" desc="Urut dari ER tertinggi, bukan untuk copy isi konten." />
+              </div>
+              {topRows.length ? (
+                <div className="divide-y divide-gray-50">
+                  {topRows.map(row => (
+                    <a key={row.id} href={row.permalink || row.content_url || '#'} target="_blank" rel="noopener noreferrer"
+                      className="grid grid-cols-[48px_minmax(0,1fr)_92px] gap-3 items-center px-5 py-3 hover:bg-gray-50 transition-colors">
+                      <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center">
+                        {row.thumbnail_url ? <img src={row.thumbnail_url} alt="" className="w-full h-full object-cover" /> : <FileText size={18} className="text-gray-300" />}
                       </div>
-                      {/* Info */}
-                      <div className="p-3">
-                        {row.published_at && (
-                          <p className="text-[10px] text-gray-400 mb-1">{new Date(row.published_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                        )}
-                        <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed mb-2">
-                          {row.title && !row.title.startsWith('Post ') ? row.title : <span className="text-gray-400 italic">Lihat di Instagram →</span>}
-                        </p>
-                        <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                          <span className="flex items-center gap-1"><Heart size={10} />{(row.likes ?? 0).toLocaleString('id-ID')}</span>
-                          <span className="flex items-center gap-1"><MessageCircle size={10} />{(row.comments ?? 0).toLocaleString('id-ID')}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${CONTENT_TYPE_COLORS[row.content_type] ?? 'bg-gray-100 text-gray-600'}`}>{row.content_type ?? 'Other'}</span>
+                          {(() => {
+                            const hook = inferHookStyle(row);
+                            return hook.label !== 'Belum terbaca'
+                              ? <span className="text-[10px] text-gray-400 truncate">{hook.label}{hook.inferred ? ' (auto)' : ''}</span>
+                              : null;
+                          })()}
                         </div>
+                        <p className="text-sm font-medium text-gray-700 truncate">{row.title && !row.title.startsWith('Post ') ? row.title : 'Konten kompetitor'}</p>
+                        <p className="text-xs text-gray-400">{row.published_at ? new Date(row.published_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Tanggal belum ada'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-violet-600">{(Number(row.estimated_engagement_rate) || 0).toFixed(1)}%</p>
+                        <p className="text-[10px] text-gray-400">ER</p>
                       </div>
                     </a>
-                  );
-                })}
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : (
+                <div className="p-10 text-center">
+                  <FileText size={32} className="mx-auto text-gray-200 mb-2" />
+                  <p className="text-sm text-gray-400">Belum ada konten untuk dianalisa.</p>
+                  <button onClick={() => onAddContent(comp)} className="mt-3 text-sm text-violet-600 font-semibold hover:text-violet-700">
+                    Tambah konten pertama
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
 }
 
 // ── Tab: Gap Analysis ─────────────────────────────────────────
-function TabGap({ competitors, insights, userAccount }) {
-  const [selected, setSelected] = useState(competitors[0]?.id ?? null);
-  const insight = insights[selected];
+function TabGap({ competitors, insights, userAccount, onAdd }) {
+  const [selected, setSelected] = useState(null);
+  const selectedId = selected ?? competitors[0]?.id;
+  const insight = insights[selectedId];
   const gaps = insight?.gap_analysis?.gaps ?? [];
-  const comp = competitors.find(c => c.id === selected);
+  const comp = competitors.find(c => c.id === selectedId);
+
+  if (!competitors.length) return <EmptyCompetitorState onAdd={onAdd} />;
 
   const priorityOrder = { high: 0, medium: 1, low: 2 };
   const sorted = [...gaps].sort((a, b) => (priorityOrder[a.priority] ?? 3) - (priorityOrder[b.priority] ?? 3));
+  const counts = {
+    behind: sorted.filter(g => g.status === 'behind').length,
+    ahead: sorted.filter(g => g.status === 'ahead').length,
+    opportunity: sorted.filter(g => g.status === 'opportunity').length,
+  };
 
   return (
     <div className="space-y-5">
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {competitors.map(c => (
-          <button key={c.id} onClick={() => setSelected(c.id)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${selected === c.id ? 'bg-violet-100 text-violet-700' : 'bg-white border border-gray-200 text-gray-600 hover:border-violet-200'}`}>
-            vs {c.name}
-          </button>
-        ))}
-      </div>
+      <AccountPillSelector competitors={competitors} selected={selectedId} setSelected={setSelected} prefix="vs " />
 
       {comp && (
-        <>
-          {/* Legend */}
-          <div className="flex flex-wrap gap-3">
-            {[
-              { status: 'ahead',       label: 'Kamu Unggul' },
-              { status: 'behind',      label: 'Perlu Kejar' },
-              { status: 'opportunity', label: 'Peluang' },
-              { status: 'parity',      label: 'Seimbang' },
-            ].map(({ status, label }) => {
-              const { color, bg } = gapStatusStyle(status);
-              return (
-                <span key={status} className={`text-xs px-3 py-1 rounded-full font-medium ${bg} ${color}`}>{label}</span>
-              );
-            })}
+        <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4">
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <SectionHeader title={`Kamu vs ${comp.name}`} desc="Ringkasan gap yang perlu diprioritaskan." />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-xl bg-red-50 p-3 text-center"><p className="text-xl font-bold text-red-600">{counts.behind}</p><p className="text-[10px] text-red-500">Kejar</p></div>
+                <div className="rounded-xl bg-violet-50 p-3 text-center"><p className="text-xl font-bold text-violet-600">{counts.opportunity}</p><p className="text-[10px] text-violet-500">Peluang</p></div>
+                <div className="rounded-xl bg-emerald-50 p-3 text-center"><p className="text-xl font-bold text-emerald-600">{counts.ahead}</p><p className="text-[10px] text-emerald-500">Unggul</p></div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <SectionHeader title="Legenda" />
+              <div className="space-y-2">
+                {[
+                  { status: 'behind', label: 'Perlu Kejar' },
+                  { status: 'opportunity', label: 'Peluang' },
+                  { status: 'ahead', label: 'Kamu Unggul' },
+                  { status: 'parity', label: 'Seimbang' },
+                ].map(({ status, label }) => {
+                  const style = gapStatusStyle(status);
+                  return <span key={status} className={`block text-xs px-3 py-2 rounded-xl font-semibold ${style.bg} ${style.color}`}>{label}</span>;
+                })}
+              </div>
+            </div>
           </div>
 
-          {/* Gap cards */}
-          {sorted.length === 0 ? (
-            <p className="text-sm text-gray-400">Belum ada data untuk gap analysis.</p>
-          ) : (
-            <div className="space-y-3">
-              {sorted.map(gap => {
-                const style = gapStatusStyle(gap.status);
-                const priorityBadge = gap.priority === 'high' ? 'bg-red-50 text-red-600' : gap.priority === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-500';
-                return (
-                  <div key={gap.dimension} className="bg-white rounded-2xl border border-gray-100 p-4">
-                    <div className="flex items-start gap-3">
-                      <div className={`flex-shrink-0 w-24 text-center py-1 rounded-lg text-xs font-semibold ${style.bg} ${style.color}`}>
-                        {style.label}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-gray-700 text-sm">{gap.dimension}</span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${priorityBadge}`}>
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <SectionHeader title="Action Plan Gap" desc="Urutan sudah berdasarkan prioritas tertinggi." />
+            {sorted.length ? (
+              <div className="space-y-3">
+                {sorted.map((gap, index) => {
+                  const style = gapStatusStyle(gap.status);
+                  const priorityBadge = gap.priority === 'high' ? 'bg-red-50 text-red-600' : gap.priority === 'medium' ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-500';
+                  return (
+                    <div key={gap.dimension} className="grid grid-cols-[32px_minmax(0,1fr)] gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center text-xs font-bold">{index + 1}</div>
+                      <div className="rounded-2xl border border-gray-100 p-4">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className={`text-xs px-2 py-1 rounded-lg font-semibold ${style.bg} ${style.color}`}>{style.label}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${priorityBadge}`}>
                             {gap.priority === 'high' ? 'Prioritas Tinggi' : gap.priority === 'medium' ? 'Medium' : 'Low'}
                           </span>
+                          <p className="text-sm font-bold text-gray-800">{gap.dimension}</p>
                         </div>
-                        <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
-                          <span><span className="text-violet-600 font-semibold">Kamu:</span> {gap.user}</span>
-                          <span><span className="text-blue-600 font-semibold">{comp.name}:</span> {gap.comp}</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs mb-3">
+                          <div className="rounded-xl bg-violet-50 px-3 py-2"><span className="text-violet-600 font-semibold">Kamu</span><p className="text-gray-700 mt-0.5">{gap.user}</p></div>
+                          <div className="rounded-xl bg-blue-50 px-3 py-2"><span className="text-blue-600 font-semibold">{comp.name}</span><p className="text-gray-700 mt-0.5">{gap.comp}</p></div>
                         </div>
-                        <p className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">{gap.action}</p>
+                        <p className="text-sm text-gray-600 leading-relaxed">{gap.action}</p>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">Belum ada data untuk gap analysis.</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
 // ── Tab: AI Recommendation ────────────────────────────────────
-function TabAI({ competitors, insights, loadingInsight, onRegenerate }) {
-  const [selected, setSelected] = useState(competitors[0]?.id ?? null);
-  const insight = insights[selected];
+function TabAI({ competitors, insights, loadingInsight, onRegenerate, onAdd }) {
+  const [selected, setSelected] = useState(null);
+  const selectedId = selected ?? competitors[0]?.id;
+  const insight = insights[selectedId];
   const recs = insight?.recommendation ?? [];
-  const comp = competitors.find(c => c.id === selected);
+  const comp = competitors.find(c => c.id === selectedId);
+  const nextSteps = recs.flatMap(rec => rec.points.slice(0, 1)).slice(0, 4);
+
+  if (!competitors.length) return <EmptyCompetitorState onAdd={onAdd} />;
 
   return (
     <div className="space-y-5">
-      <div className="flex gap-2 overflow-x-auto pb-1 flex-wrap">
-        {competitors.map(c => (
-          <button key={c.id} onClick={() => setSelected(c.id)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${selected === c.id ? 'bg-violet-100 text-violet-700' : 'bg-white border border-gray-200 text-gray-600 hover:border-violet-200'}`}>
-            {c.name}
-          </button>
-        ))}
-      </div>
+      <AccountPillSelector competitors={competitors} selected={selectedId} setSelected={setSelected} />
 
-      {comp && insight && (
-        <>
-          {/* Summary */}
-          <div className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100 rounded-2xl p-5">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
-                <Sparkles size={16} className="text-violet-600" />
+      {comp && insight ? (
+        <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4">
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-violet-100 p-5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center flex-shrink-0">
+                  <Sparkles size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-400">Ringkasan strategi</p>
+                  <h3 className="font-bold text-gray-800 mb-2">{comp.name}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{insight.summary}</p>
+                </div>
               </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-violet-800 mb-1">Ringkasan AI</h3>
-                <p className="text-sm text-violet-700 leading-relaxed">{insight.summary}</p>
-              </div>
-              <button onClick={() => onRegenerate(selected)} disabled={loadingInsight}
-                className="flex items-center gap-1.5 text-xs text-violet-600 hover:text-violet-700 font-medium flex-shrink-0">
-                <RefreshCw size={13} className={loadingInsight ? 'animate-spin' : ''} />
-                Refresh
+              <button onClick={() => onRegenerate(selectedId)} disabled={loadingInsight}
+                className="mt-4 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-violet-100 text-violet-600 text-sm font-semibold hover:bg-violet-50">
+                <RefreshCw size={14} className={loadingInsight ? 'animate-spin' : ''} />
+                Refresh rekomendasi
               </button>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <SectionHeader title="Langkah Berikutnya" desc="Ambil satu eksekusi dulu dari rekomendasi ini." />
+              <div className="space-y-2">
+                {nextSteps.map((step, index) => (
+                  <div key={`${step}-${index}`} className="flex gap-3 rounded-xl bg-gray-50 p-3">
+                    <span className="w-6 h-6 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center text-xs font-bold flex-shrink-0">{index + 1}</span>
+                    <p className="text-xs text-gray-600 leading-relaxed">{step}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Recommendation cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {recs.map(rec => {
               const Icon = REC_ICONS[rec.icon] ?? Lightbulb;
               const borderBg = REC_COLORS[rec.type] ?? 'border-gray-200 bg-gray-50';
@@ -892,12 +1026,12 @@ function TabAI({ competitors, insights, loadingInsight, onRegenerate }) {
                 <div key={rec.type} className={`rounded-2xl border p-4 ${borderBg}`}>
                   <div className="flex items-center gap-2 mb-3">
                     <Icon size={16} className={iconColor} />
-                    <h4 className="font-semibold text-gray-700 text-sm">{rec.title}</h4>
+                    <h4 className="font-bold text-gray-800 text-sm">{rec.title}</h4>
                   </div>
-                  <ul className="space-y-1.5">
+                  <ul className="space-y-2">
                     {rec.points.map((pt, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                        <span className="mt-0.5 w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0" />
+                      <li key={i} className="flex items-start gap-2 text-xs text-gray-600 leading-relaxed">
+                        <CheckCircle size={13} className="mt-0.5 text-gray-400 flex-shrink-0" />
                         {pt}
                       </li>
                     ))}
@@ -906,13 +1040,22 @@ function TabAI({ competitors, insights, loadingInsight, onRegenerate }) {
               );
             })}
           </div>
-        </>
-      )}
-
-      {!comp && (
-        <div className="text-center py-12">
-          <Users size={40} className="mx-auto text-gray-200 mb-3" />
-          <p className="text-gray-400">Pilih kompetitor untuk melihat rekomendasi AI.</p>
+        </div>
+      ) : comp ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+          <Sparkles size={36} className="mx-auto text-gray-200 mb-3" />
+          <p className="font-semibold text-gray-700">Rekomendasi untuk {comp.name} belum tersedia</p>
+          <p className="text-sm text-gray-400 mt-1 mb-4">Generate ulang insight agar action plan dan rekomendasi strateginya muncul.</p>
+          <button onClick={() => onRegenerate(selectedId)} disabled={loadingInsight}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-violet-500 text-white text-sm font-semibold hover:bg-violet-600 disabled:opacity-50">
+            <RefreshCw size={14} className={loadingInsight ? 'animate-spin' : ''} />
+            Generate rekomendasi
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+          <Sparkles size={36} className="mx-auto text-gray-200 mb-3" />
+          <p className="text-gray-400">Pilih kompetitor untuk melihat rekomendasi.</p>
         </div>
       )}
     </div>
@@ -985,17 +1128,21 @@ export default function CompetitorIntelligence() {
           onRemove={removeCompetitor} onAdd={() => setShowAddComp(true)} />
       )}
       {tab === 'comparison' && (
-        <TabComparison competitors={competitors} userAccount={userAccount} scores={scores} />
+        <TabComparison competitors={competitors} userAccount={userAccount} scores={scores}
+          onAdd={() => setShowAddComp(true)} />
       )}
       {tab === 'content' && (
-        <TabContent competitors={competitors} contents={contents} onAddContent={setAddContentTarget} />
+        <TabContent competitors={competitors} contents={contents} onAddContent={setAddContentTarget}
+          onAdd={() => setShowAddComp(true)} />
       )}
       {tab === 'gap' && (
-        <TabGap competitors={competitors} insights={insights} userAccount={userAccount} />
+        <TabGap competitors={competitors} insights={insights} userAccount={userAccount}
+          onAdd={() => setShowAddComp(true)} />
       )}
       {tab === 'ai' && (
         <TabAI competitors={competitors} insights={insights}
-          loadingInsight={loadingInsight} onRegenerate={regenerateInsight} />
+          loadingInsight={loadingInsight} onRegenerate={regenerateInsight}
+          onAdd={() => setShowAddComp(true)} />
       )}
 
       {/* Modals */}

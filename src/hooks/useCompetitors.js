@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { competitors as mockCompetitors } from '../data/mockData';
+import { withTimeout } from '../lib/async';
 
 export function useCompetitors(workspaceId) {
   const [competitors, setCompetitors] = useState([]);
@@ -15,11 +16,11 @@ export function useCompetitors(workspaceId) {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('competitors')
         .select(`*, competitor_metrics(followers, average_engagement_rate, posting_frequency, top_content_type, metric_date)`)
         .eq('workspace_id', workspaceId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }), 7000, 'Competitors request timeout');
 
       if (error) throw error;
 

@@ -61,8 +61,8 @@ function GenerateModal({ onClose, onGenerate, generating, genResult }) {
             <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl">
               <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-semibold text-amber-700">Menggunakan mode fallback</p>
-                <p className="text-xs text-amber-600 mt-0.5">OpenAI tidak tersedia. Hipotesa dibuat dari pola data lokal.</p>
+	                <p className="text-xs font-semibold text-amber-700">Menggunakan mode fallback</p>
+	                <p className="text-xs text-amber-600 mt-0.5">AI provider tidak tersedia. Hipotesa dibuat dari pola data lokal.</p>
               </div>
             </div>
           )}
@@ -359,7 +359,8 @@ export default function AIHypothesis() {
       });
       setGenResult(result);
       if (result.hypotheses?.length) {
-        await addHypotheses(result.hypotheses);
+        const saved = await addHypotheses(result.hypotheses);
+        if (saved?.error) throw new Error(saved.error.message || 'Gagal menyimpan hipotesa baru');
         setShowGenModal(false);
       }
     } catch (e) {

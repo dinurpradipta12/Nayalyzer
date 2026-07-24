@@ -75,6 +75,7 @@ function buildInstagramOAuthUrl(state: string): string {
     scope:         'instagram_business_basic,instagram_business_content_publish',
     response_type: 'code',
     state,
+    force_reauth:  '1',
   });
   return `https://www.instagram.com/oauth/authorize?${params}`;
 }
@@ -111,10 +112,8 @@ interface TokenResult {
 }
 
 async function exchangeInstagramCode(code: string): Promise<TokenResult> {
-  // Token exchange uses the parent Meta App ID (1548393280292940), not the Instagram product ID
-  const META_APP_ID = Deno.env.get('META_APP_ID') || '1548393280292940';
   const body = new URLSearchParams({
-    client_id: META_APP_ID, client_secret: IG_APP_SECRET,
+    client_id: IG_APP_ID, client_secret: IG_APP_SECRET,
     grant_type: 'authorization_code',
     redirect_uri: CALLBACK_URI,
     code,
@@ -375,6 +374,12 @@ serve(async (req) => {
     // ── DISCONNECT ────────────────────────────────────────────
     if (action === 'disconnect' && req.method === 'POST') {
       const { connection_id } = await req.json() as { connection_id: string };
+      const { data: conn } = await supabase
+        .from('platform_connections')
+        .select('social_account_id')
+        .eq('id', connection_id)
+        .single();
+
       await supabase.from('platform_connections').update({
         connection_status: 'disconnected',
         access_token_enc:  null,
@@ -382,8 +387,6 @@ serve(async (req) => {
         updated_at:        new Date().toISOString(),
       }).eq('id', connection_id);
 
-      // Also update social_account connection_status
-      const { data: conn } = await supabase.from('platform_connections').select('social_account_id').eq('id', connection_id).single();
       if (conn?.social_account_id) {
         await supabase.from('social_accounts').update({ connection_status: 'disconnected' }).eq('id', conn.social_account_id);
       }

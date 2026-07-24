@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { generateFallbackHypotheses } from '../lib/aiHypothesisEngine';
+import { withTimeout } from '../lib/async';
 
 function mapDbRow(h) {
   return {
@@ -52,11 +53,11 @@ export function useHypotheses(workspaceId) {
     }
     setLoading(true);
     try {
-      const { data, error: err } = await supabase
+      const { data, error: err } = await withTimeout(supabase
         .from('ai_hypotheses')
         .select('*')
         .eq('workspace_id', workspaceId)
-        .order('priority_score', { ascending: false, nullsFirst: false });
+        .order('priority_score', { ascending: false, nullsFirst: false }), 7000, 'Hypotheses request timeout');
 
       if (err) throw err;
       setHypotheses(data?.length ? data.map(mapDbRow) : generateFallbackHypotheses());

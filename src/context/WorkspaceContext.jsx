@@ -1,8 +1,11 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { withTimeout } from '../lib/async';
+import { normalizePermissions, hasFeaturePermission } from '../lib/permissions';
 
 const WorkspaceContext = createContext(null);
+const WORKSPACE_CACHE_VERSION = 2;
 
 const DEMO_WORKSPACE = {
   id: 'demo-ws',
@@ -12,7 +15,33 @@ const DEMO_WORKSPACE = {
   timezone: 'Asia/Jakarta',
   owner_id: 'demo',
   role: 'owner',
+  permissions: normalizePermissions('owner'),
 };
+
+function workspaceCacheKey(userId) {
+  return `naya_workspaces_${userId}`;
+}
+
+function normalizeMemberWorkspaces(rows) {
+  return (rows || [])
+    .map((row) => row.workspaces ? {
+      ...row.workspaces,
+      role: row.role,
+      permissions: normalizePermissions(row.role, row.permissions),
+    } : null)
+    .filter(Boolean);
+}
+
+function normalizeWorkspaceList(list) {
+  return (list || []).map((workspace) => ({
+    ...workspace,
+    permissions: normalizePermissions(workspace.role, workspace.permissions),
+  }));
+}
+
+function generateInviteOtp() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
 
 export function WorkspaceProvider({ children }) {
   const { user, isAuthenticated } = useAuth();
@@ -24,7 +53,12 @@ export function WorkspaceProvider({ children }) {
 
   // ── Load workspaces for current user ───────────────────
   const loadWorkspaces = useCallback(async () => {
-    if (!isAuthenticated) { setLoading(false); return; }
+    if (!isAuthenticated) {
+      setWorkspaces([]);
+      setActiveWorkspace(null);
+      setLoading(false);
+      return;
+    }
 
     if (!SUPABASE_ENABLED) {
       setWorkspaces([DEMO_WORKSPACE]);
@@ -35,39 +69,134 @@ export function WorkspaceProvider({ children }) {
     }
 
     setLoading(true);
-    try {
-      const { data, error } = await supabase.rpc('get_user_workspaces');
-      if (error) {
-        // RPC tidak ada (migrations belum dijalankan) — set DB_PENDING flag
-        console.warn('get_user_workspaces RPC error:', error.message);
-        setError('DB_PENDING');
-        setWorkspaces([]);
+
+    const cacheKey = workspaceCacheKey(user.id);
+    let hasCachedWorkspace = false;
+    const applyWorkspaces = (list) => {
+      setError(null);
+      const normalizedList = normalizeWorkspaceList(list);
+      setWorkspaces(normalizedList);
+      if (normalizedList.length > 0) {
+        const saved = localStorage.getItem('naya_active_workspace_id');
+        const found = normalizedList.find(w => w.id === saved) || normalizedList[0];
+        setActiveWorkspace(found);
+        localStorage.setItem(cacheKey, JSON.stringify({
+          version: WORKSPACE_CACHE_VERSION,
+          workspaces: normalizedList,
+          activeWorkspace: found,
+        }));
       } else {
-        setWorkspaces(data || []);
-        if (data?.length > 0) {
-          const saved = localStorage.getItem('naya_active_workspace_id');
-          const found = data.find(w => w.id === saved) || data[0];
-          setActiveWorkspace(found);
-        }
+        setActiveWorkspace(null);
+        localStorage.removeItem(cacheKey);
       }
+    };
+
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (cached?.version === WORKSPACE_CACHE_VERSION && cached?.workspaces?.length) {
+        hasCachedWorkspace = true;
+        const normalizedCached = normalizeWorkspaceList(cached.workspaces);
+        setWorkspaces(normalizedCached);
+        setActiveWorkspace(normalizeWorkspaceList([cached.activeWorkspace || normalizedCached[0]])[0]);
+        setLoading(false);
+      } else if (cached) {
+        localStorage.removeItem(cacheKey);
+      }
+    } catch {
+      localStorage.removeItem(cacheKey);
+    }
+
+    try {
+      const { data, error } = await withTimeout(
+        supabase.rpc('get_user_workspaces'),
+        12000,
+        'Workspace request timeout'
+      );
+
+      if (!error && data?.length) {
+        applyWorkspaces(data);
+        return;
+      }
+
+      if (error) {
+        console.warn('get_user_workspaces RPC error:', error.message);
+      }
+
+      const { data: memberRows, error: memberError } = await withTimeout(
+        supabase
+          .from('workspace_members')
+          .select(`
+            role,
+            permissions,
+            workspaces (
+              id, name, brand_name, industry, timezone, logo_url, owner_id, created_at
+            )
+          `)
+          .eq('user_id', user.id)
+          .eq('status', 'active'),
+        8000,
+        'Workspace membership request timeout'
+      );
+
+      if (!memberError && memberRows?.length) {
+        applyWorkspaces(normalizeMemberWorkspaces(memberRows));
+        return;
+      }
+
+      if (memberError) {
+        console.warn('workspace_members fallback error:', memberError.message);
+      }
+
+      const { data: ownedRows, error: ownedError } = await withTimeout(
+        supabase
+          .from('workspaces')
+          .select('id, name, brand_name, industry, timezone, logo_url, owner_id, created_at')
+          .eq('owner_id', user.id)
+          .order('created_at', { ascending: true }),
+        8000,
+        'Owned workspace request timeout'
+      );
+
+      if (!ownedError && ownedRows?.length) {
+        applyWorkspaces(ownedRows.map(w => ({ ...w, role: 'owner', permissions: normalizePermissions('owner') })));
+        return;
+      }
+
+      if (ownedError) {
+        console.warn('owned workspaces fallback error:', ownedError.message);
+      }
+
+      applyWorkspaces([]);
     } catch (e) {
       console.warn('loadWorkspaces:', e.message);
-      setError('DB_PENDING');
+      if (!hasCachedWorkspace) setError('DB_PENDING');
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
 
   useEffect(() => { loadWorkspaces(); }, [loadWorkspaces]);
 
   // ── Load members for active workspace ──────────────────
   useEffect(() => {
+    setMembers([]);
     if (!activeWorkspace || !SUPABASE_ENABLED) return;
-    supabase
+
+    let mounted = true;
+    withTimeout(supabase
       .from('workspace_members')
       .select('*')
-      .eq('workspace_id', activeWorkspace.id)
-      .then(({ data }) => setMembers(data || []));
+      .eq('workspace_id', activeWorkspace.id), 6000, 'Members request timeout')
+      .then(({ data }) => {
+        if (!mounted) return;
+        setMembers((data || []).map(member => ({
+          ...member,
+          permissions: normalizePermissions(member.role, member.permissions),
+        })));
+      })
+      .catch((e) => console.warn('load members:', e.message));
+
+    return () => { mounted = false; };
   }, [activeWorkspace]);
 
   // ── Workspace actions ───────────────────────────────────
@@ -82,12 +211,14 @@ export function WorkspaceProvider({ children }) {
       p_name: name, p_brand_name: brandName, p_industry: industry, p_timezone: timezone || 'Asia/Jakarta',
     });
     if (error) return { error };
+    if (data) localStorage.setItem('naya_active_workspace_id', data);
     await loadWorkspaces();
     return { data };
   };
 
   const switchWorkspace = (ws) => {
     setActiveWorkspace(ws);
+    setMembers([]);
     if (ws?.id) localStorage.setItem('naya_active_workspace_id', ws.id);
   };
 
@@ -106,14 +237,39 @@ export function WorkspaceProvider({ children }) {
     return { data, error };
   };
 
-  const inviteMember = async ({ email, role }) => {
-    if (!SUPABASE_ENABLED) return { data: { email, role, status: 'pending' } };
+  const inviteMember = async ({ email, role, permissions }) => {
+    const normalizedPermissions = normalizePermissions(role, permissions);
+    const inviteOtp = generateInviteOtp();
+    if (!SUPABASE_ENABLED) {
+      const data = {
+        id: 'demo-member-' + Date.now(),
+        email,
+        role,
+        permissions: normalizedPermissions,
+        status: 'pending',
+        invite_token: crypto.randomUUID(),
+        invite_otp: inviteOtp,
+      };
+      setMembers(p => [...p, data]);
+      return { data };
+    }
     const { data, error } = await supabase
       .from('workspace_members')
-      .insert({ workspace_id: activeWorkspace.id, email, role, status: 'pending', invited_by: user.id })
+      .insert({
+        workspace_id: activeWorkspace.id,
+        email,
+        role,
+        permissions: normalizedPermissions,
+        status: 'pending',
+        invite_otp: inviteOtp,
+        invited_by: user.id,
+      })
       .select()
       .single();
-    if (!error) setMembers(p => [...p, data]);
+    if (!error) setMembers(p => [...p, {
+      ...data,
+      permissions: normalizePermissions(data.role, data.permissions),
+    }]);
     return { data, error };
   };
 
@@ -131,15 +287,31 @@ export function WorkspaceProvider({ children }) {
   };
 
   const updateMemberRole = async (memberId, role) => {
+    const permissions = normalizePermissions(role);
     if (!SUPABASE_ENABLED) {
-      setMembers(p => p.map(m => m.id === memberId ? { ...m, role } : m));
+      setMembers(p => p.map(m => m.id === memberId ? { ...m, role, permissions } : m));
       return {};
     }
     const { error } = await supabase
       .from('workspace_members')
-      .update({ role })
+      .update({ role, permissions })
       .eq('id', memberId);
-    if (!error) setMembers(p => p.map(m => m.id === memberId ? { ...m, role } : m));
+    if (!error) setMembers(p => p.map(m => m.id === memberId ? { ...m, role, permissions } : m));
+    return { error };
+  };
+
+  const updateMemberPermissions = async (memberId, permissions) => {
+    const current = members.find(m => m.id === memberId);
+    const normalizedPermissions = normalizePermissions(current?.role, permissions);
+    if (!SUPABASE_ENABLED) {
+      setMembers(p => p.map(m => m.id === memberId ? { ...m, permissions: normalizedPermissions } : m));
+      return {};
+    }
+    const { error } = await supabase
+      .from('workspace_members')
+      .update({ permissions: normalizedPermissions })
+      .eq('id', memberId);
+    if (!error) setMembers(p => p.map(m => m.id === memberId ? { ...m, permissions: normalizedPermissions } : m));
     return { error };
   };
 
@@ -156,16 +328,22 @@ export function WorkspaceProvider({ children }) {
     return (order[activeWorkspace.role] || 0) >= (order[minRole] || 0);
   };
 
-  return (
-    <WorkspaceContext.Provider value={{
-      workspaces, activeWorkspace, members, loading, error,
-      hasWorkspace: workspaces.length > 0,
-      userRole: activeWorkspace?.role || null,
-      hasRole,
-      createWorkspace, switchWorkspace, updateWorkspace,
-      inviteMember, removeMember, updateMemberRole, acceptInvitation,
-      reload: loadWorkspaces,
-    }}>
+  const hasFeature = (featureKey) => hasFeaturePermission(activeWorkspace, featureKey);
+
+  const isPrimaryAdmin = activeWorkspace?.role === 'owner';
+
+	  return (
+	    <WorkspaceContext.Provider value={{
+	      workspaces, activeWorkspace, members, loading, error,
+        hasWorkspace: workspaces.length > 0,
+        userRole: activeWorkspace?.role || null,
+        hasRole,
+        hasFeature,
+        isPrimaryAdmin,
+        createWorkspace, switchWorkspace, updateWorkspace,
+        inviteMember, removeMember, updateMemberRole, updateMemberPermissions, acceptInvitation,
+        reload: loadWorkspaces,
+	    }}>
       {children}
     </WorkspaceContext.Provider>
   );

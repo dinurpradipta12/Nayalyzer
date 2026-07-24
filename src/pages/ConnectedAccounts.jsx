@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Link2, RefreshCw, Unlink, CheckCircle2, XCircle, AlertTriangle,
   Loader2, Wifi, WifiOff, Info, ExternalLink, ChevronDown, ChevronUp,
-  Upload, Zap, Settings, X, ArrowRight, LogIn,
+  Upload, Zap, Settings, X, ArrowRight, LogIn, LockKeyhole, Eye, EyeOff,
 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { SUPABASE_ENABLED } from '../lib/supabase';
+import { PLATFORM_NAMES, usePlatformVisibility } from '../lib/platformVisibility';
+import { clearSocialDataCache } from '../hooks/useSocialData';
 import {
   loadConnections, initiateOAuth,
   triggerSync, disconnectPlatform, PLATFORM_CONFIG,
@@ -232,17 +234,23 @@ function relTime(iso) {
 }
 
 // ── Platform Row (list view — untuk embedded/settings) ────────
-function PlatformRow({ platform, connection, onConnect, onSync, onDisconnect }) {
+function PlatformRow({ platform, connection, onConnect, onSync, onDisconnect, canManageLogin, onHide, connecting }) {
   const cfg = PLATFORM_CONFIG[platform];
   const [syncing,    setSyncing]    = useState(false);
   const [expanded,   setExpanded]   = useState(false);
   const [localConn,  setLocalConn]  = useState(connection);
-  const isConnected  = localConn?.connection_status === 'connected';
+
+  useEffect(() => {
+    setLocalConn(connection);
+  }, [connection]);
+
   const tokenDaysLeft = localConn?.token_expires_at
     ? Math.round((new Date(localConn.token_expires_at) - Date.now()) / 86400000)
     : null;
   const username = localConn?.provider_username || localConn?.social_accounts?.username || localConn?.social_accounts?.account_name;
   const followers = localConn?.social_accounts?.followers_count;
+  const isConnected  = localConn?.connection_status === 'connected' && !!username;
+  const displayStatus = isConnected ? localConn?.connection_status : 'disconnected';
 
   const handleSync = async (type = 'full') => {
     if (!localConn?.id) return;
@@ -260,7 +268,7 @@ function PlatformRow({ platform, connection, onConnect, onSync, onDisconnect }) 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="font-bold text-sm text-gray-800 truncate">{platform}</p>
-            <StatusBadge status={localConn?.connection_status || 'disconnected'} />
+            <StatusBadge status={displayStatus} />
           </div>
           <p className="text-xs text-gray-400 truncate">
             {username ? `@${username}` : 'Belum terhubung'}
@@ -276,21 +284,33 @@ function PlatformRow({ platform, connection, onConnect, onSync, onDisconnect }) 
               {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
               <span className="hidden sm:inline">{syncing ? 'Syncing' : 'Sync'}</span>
             </button>
-            <button onClick={() => onDisconnect(localConn.id, () => setLocalConn(p => ({ ...p, connection_status: 'disconnected', access_token_enc: null })))}
-              title="Disconnect"
-              className="p-2 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 transition-all">
-              <Unlink size={13} />
-            </button>
+            {canManageLogin && (
+              <button onClick={() => onDisconnect(localConn.id, () => setLocalConn(p => ({ ...p, connection_status: 'disconnected', access_token_enc: null })))}
+                title="Disconnect"
+                className="p-2 rounded-xl border border-red-100 text-red-500 hover:bg-red-50 transition-all">
+                <Unlink size={13} />
+              </button>
+            )}
             <button onClick={() => setExpanded(e => !e)} title="Detail"
               className="p-2 rounded-xl text-gray-400 hover:bg-lavender-50 hover:text-violet-600 transition-all">
               {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
           </div>
         ) : (
-          <button onClick={() => onConnect(platform, 'oauth')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-400 text-white text-xs font-bold hover:shadow-purple transition-all flex-shrink-0">
-            <LogIn size={12} /> <span className="hidden sm:inline">Masuk dengan {platform}</span><span className="sm:hidden">Masuk</span>
-          </button>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {canManageLogin && (
+              <button onClick={() => onHide(platform)} title={`Hide ${platform}`}
+                className="p-2 rounded-xl border border-gray-100 text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all">
+                <EyeOff size={13} />
+              </button>
+            )}
+            <button onClick={() => canManageLogin && onConnect(platform, 'oauth')} disabled={!canManageLogin || connecting}
+              title={canManageLogin ? `Masuk dengan ${platform}` : 'Hanya admin utama yang bisa login akun sosial'}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-400 text-white text-xs font-bold hover:shadow-purple transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              {connecting ? <Loader2 size={12} className="animate-spin" /> : canManageLogin ? <LogIn size={12} /> : <LockKeyhole size={12} />}
+              <span className="hidden sm:inline">{connecting ? 'Menunggu login...' : canManageLogin ? `Masuk dengan ${platform}` : 'Terkunci'}</span><span className="sm:hidden">Masuk</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -329,17 +349,24 @@ function PlatformRow({ platform, connection, onConnect, onSync, onDisconnect }) 
 }
 
 // ── Platform Card ─────────────────────────────────────────────
-function PlatformCard({ platform, connection, onConnect, onSync, onDisconnect, onRefresh }) {
+function PlatformCard({ platform, connection, onConnect, onSync, onDisconnect, canManageLogin, onHide, connecting }) {
   const cfg = PLATFORM_CONFIG[platform];
   const [syncing,    setSyncing]    = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [showLimits, setShowLimits] = useState(false);
   const [localConn,  setLocalConn]  = useState(connection);
-  const isConnected  = localConn?.connection_status === 'connected';
+
+  useEffect(() => {
+    setLocalConn(connection);
+  }, [connection]);
+
   const isExpired    = localConn?.connection_status === 'expired';
   const tokenDaysLeft = localConn?.token_expires_at
     ? Math.round((new Date(localConn.token_expires_at) - Date.now()) / 86400000)
     : null;
+  const username = localConn?.provider_username || localConn?.social_accounts?.username || localConn?.social_accounts?.account_name;
+  const isConnected  = localConn?.connection_status === 'connected' && !!username;
+  const displayStatus = isConnected ? localConn?.connection_status : (isExpired ? 'expired' : 'disconnected');
 
   const handleSync = async (type = 'full') => {
     if (!localConn?.id) return;
@@ -352,8 +379,6 @@ function PlatformCard({ platform, connection, onConnect, onSync, onDisconnect, o
   };
 
   const accent = PLATFORM_ACCENT[platform] || PLATFORM_ACCENT.Threads;
-  const username = localConn?.provider_username || localConn?.social_accounts?.username || localConn?.social_accounts?.account_name;
-
   return (
     <div className="bg-white rounded-3xl border border-purple-50 shadow-card overflow-hidden flex flex-col">
       {/* Aksen strip brand tipis di atas */}
@@ -371,7 +396,7 @@ function PlatformCard({ platform, connection, onConnect, onSync, onDisconnect, o
               </p>
             </div>
           </div>
-          <StatusBadge status={localConn?.connection_status || 'disconnected'} mode={localConn?.connection_mode} />
+          <StatusBadge status={displayStatus} mode={localConn?.connection_mode} />
         </div>
 
         {/* Stat pills — hanya saat terhubung */}
@@ -444,14 +469,22 @@ function PlatformCard({ platform, connection, onConnect, onSync, onDisconnect, o
         {/* Actions */}
         {!isConnected ? (
           <div className="space-y-2">
-            <button onClick={() => onConnect(platform, 'oauth')}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-400 text-white text-sm font-bold hover:shadow-purple transition-all">
-              <LogIn size={15} /> Masuk dengan {platform}
+            <button onClick={() => canManageLogin && onConnect(platform, 'oauth')} disabled={!canManageLogin || connecting}
+              title={canManageLogin ? `Masuk dengan ${platform}` : 'Hanya admin utama yang bisa login akun sosial'}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-purple-400 text-white text-sm font-bold hover:shadow-purple transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              {connecting ? <Loader2 size={15} className="animate-spin" /> : canManageLogin ? <LogIn size={15} /> : <LockKeyhole size={15} />}
+              {connecting ? 'Menunggu login...' : canManageLogin ? `Masuk dengan ${platform}` : 'Login akun sosial terkunci'}
             </button>
             <button onClick={() => onConnect(platform, 'manual')}
               className="w-full text-center text-xs text-gray-400 hover:text-violet-600 transition-colors py-1">
               atau import data manual (CSV / Sheets)
             </button>
+            {canManageLogin && (
+              <button onClick={() => onHide(platform)}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-100 text-xs font-semibold text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all">
+                <EyeOff size={13} /> Hide platform ini
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-2.5">
@@ -462,11 +495,13 @@ function PlatformCard({ platform, connection, onConnect, onSync, onDisconnect, o
                 {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                 {syncing ? 'Syncing...' : 'Sync Now'}
               </button>
-              <button onClick={() => onDisconnect(localConn.id, () => setLocalConn(p => ({ ...p, connection_status: 'disconnected', access_token_enc: null })))}
-                title="Disconnect"
-                className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl border border-red-100 text-red-500 text-xs font-semibold hover:bg-red-50 transition-all">
-                <Unlink size={13} />
-              </button>
+              {canManageLogin && (
+                <button onClick={() => onDisconnect(localConn.id, () => setLocalConn(p => ({ ...p, connection_status: 'disconnected', access_token_enc: null })))}
+                  title="Disconnect"
+                  className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl border border-red-100 text-red-500 text-xs font-semibold hover:bg-red-50 transition-all">
+                  <Unlink size={13} />
+                </button>
+              )}
             </div>
             {/* Quick sync tabs */}
             <div className="flex items-center gap-1 bg-lavender-50 rounded-xl p-1">
@@ -507,12 +542,14 @@ function PlatformCard({ platform, connection, onConnect, onSync, onDisconnect, o
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function ConnectedAccounts({ embedded = false }) {
-  const { activeWorkspace }     = useWorkspace();
+  const { activeWorkspace, isPrimaryAdmin } = useWorkspace();
   const wsId = activeWorkspace?.id;
+  const { hiddenPlatforms, visiblePlatforms, setPlatformHidden } = usePlatformVisibility(wsId);
   const [connections,  setConnections]  = useState([]);
   const [loadingConns, setLoadingConns] = useState(true);
   const [toast,        setToast]        = useState(null);
   const [apiGuide,     setApiGuide]     = useState(null);
+  const [connectingPlatform, setConnectingPlatform] = useState(null);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -541,16 +578,25 @@ export default function ConnectedAccounts({ embedded = false }) {
   const handleConnect = async (platform, mode) => {
     if (mode === 'manual') { window.location.href = '/data-sources'; return; }
     if (mode === 'guide')  { setApiGuide(platform); return; }
+    if (connectingPlatform) return;
+
+    setConnectingPlatform(platform);
     showToast(`Membuka login ${platform}...`, 'info');
-    const result = await initiateOAuth(platform, wsId);
-    if (result.cancelled) return;
-    if (result.error === 'not_configured') {
-      showToast(`${platform} API belum dikonfigurasi.`, 'error');
-    } else if (result.error) {
-      showToast(`Error: ${result.error}`, 'error');
-    } else if (result.success) {
-      showToast(`${platform} berhasil terhubung!`, 'success');
-      reload();
+    try {
+      const result = await initiateOAuth(platform, wsId);
+      if (result.cancelled) return;
+      if (result.error === 'not_configured') {
+        showToast(`${platform} API belum dikonfigurasi.`, 'error');
+      } else if (result.error === 'timeout') {
+        showToast(`Login ${platform} belum selesai. Tutup popup lama lalu coba lagi.`, 'error');
+      } else if (result.error) {
+        showToast(`Error: ${result.error}`, 'error');
+      } else if (result.success) {
+        showToast(`${platform} berhasil terhubung!`, 'success');
+        reload();
+      }
+    } finally {
+      setConnectingPlatform(null);
     }
   };
 
@@ -562,10 +608,27 @@ export default function ConnectedAccounts({ embedded = false }) {
 
   const handleDisconnect = async (connectionId, onDone) => {
     if (!confirm('Yakin ingin disconnect? Token akses akan dihapus.')) return;
-    await disconnectPlatform(connectionId);
+    const result = await disconnectPlatform(connectionId);
+    if (result?.error) {
+      showToast(`Gagal disconnect: ${result.error}`, 'error');
+      return;
+    }
+    clearSocialDataCache(wsId);
     onDone?.();
     showToast('Platform berhasil di-disconnect', 'success');
     reload();
+  };
+
+  const handleHidePlatform = async (platform) => {
+    const result = await setPlatformHidden(platform, true);
+    if (result?.error) showToast(`Gagal hide ${platform}: ${result.error.message}`, 'error');
+    else showToast(`${platform} disembunyikan dari dashboard`, 'success');
+  };
+
+  const handleShowPlatform = async (platform) => {
+    const result = await setPlatformHidden(platform, false);
+    if (result?.error) showToast(`Gagal tampilkan ${platform}: ${result.error.message}`, 'error');
+    else showToast(`${platform} ditampilkan kembali`, 'success');
   };
 
   const connMap = {};
@@ -597,17 +660,34 @@ export default function ConnectedAccounts({ embedded = false }) {
     <div className="flex justify-center py-16"><Loader2 size={28} className="text-violet-400 animate-spin" /></div>
   ) : embedded ? (
     <div className="space-y-2.5">
-      {['Instagram','TikTok','Threads'].map(p => (
+      {visiblePlatforms.map(p => (
         <PlatformRow key={p} platform={p} connection={connMap[p]}
-          onConnect={handleConnect} onSync={handleSync} onDisconnect={handleDisconnect} />
+          onConnect={handleConnect} onSync={handleSync} onDisconnect={handleDisconnect}
+          canManageLogin={isPrimaryAdmin} onHide={handleHidePlatform}
+          connecting={connectingPlatform === p} />
       ))}
+      {hiddenPlatforms.length > 0 && (
+        <div className="rounded-2xl border border-dashed border-purple-100 bg-lavender-50/60 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Platform disembunyikan</p>
+          <div className="flex flex-wrap gap-2">
+            {hiddenPlatforms.map(platform => (
+              <button key={platform} onClick={() => handleShowPlatform(platform)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-purple-100 text-xs font-semibold text-gray-600 hover:text-violet-600 hover:border-violet-200">
+                <Eye size={13} /> {platform}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   ) : (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-      {['Instagram','TikTok','Threads'].map(p => (
-        <PlatformCard key={p} platform={p} connection={connMap[p]}
-          onConnect={handleConnect} onSync={handleSync} onDisconnect={handleDisconnect} />
-      ))}
+	      {PLATFORM_NAMES.map(p => (
+	        <PlatformCard key={p} platform={p} connection={connMap[p]}
+	          onConnect={handleConnect} onSync={handleSync} onDisconnect={handleDisconnect}
+            canManageLogin={isPrimaryAdmin} onHide={handleHidePlatform}
+            connecting={connectingPlatform === p} />
+	      ))}
     </div>
   );
 

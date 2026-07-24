@@ -1,7 +1,19 @@
-import { useState, useEffect } from 'react';
-import { User, Link2, Users, Wifi, Sparkles, FileText, Check, Save, Eye, EyeOff, Key, Database } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  Building2,
+  Check,
+  Database,
+  Eye,
+  EyeOff,
+  Key,
+  Save,
+  Settings as SettingsIcon,
+  Sparkles,
+  Wifi,
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { PLATFORM_NAMES, usePlatformVisibility } from '../lib/platformVisibility';
 import ConnectedAccounts from './ConnectedAccounts';
 import DataSources from './DataSources';
 
@@ -19,7 +31,6 @@ function SectionTitle({ icon: Icon, title, desc }) {
   );
 }
 
-// Card pembungkus tiap section
 function Card({ children }) {
   return (
     <div className="bg-white rounded-2xl border border-purple-50 shadow-card p-5 lg:p-6">
@@ -28,260 +39,247 @@ function Card({ children }) {
   );
 }
 
-function Input({ label, defaultValue, type = 'text', placeholder }) {
-  return (
-    <div>
-      <label className="text-xs font-semibold text-gray-600 block mb-1.5">{label}</label>
-      <input
-        type={type}
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        className="w-full px-4 py-2.5 rounded-xl border border-purple-100 text-sm text-gray-700 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all"
-      />
-    </div>
-  );
-}
-
-function Toggle({ label, desc, defaultChecked = false }) {
-  const [checked, setChecked] = useState(defaultChecked);
-  return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-purple-50 last:border-0">
-      <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
-        {desc && <p className="text-xs text-gray-400 mt-0.5">{desc}</p>}
-      </div>
-      <button
-        onClick={() => setChecked(!checked)}
-        className={`w-10 h-6 rounded-full transition-all duration-200 flex-shrink-0 relative
-          ${checked ? 'bg-gradient-to-r from-violet-500 to-purple-400' : 'bg-gray-200'}`}
-      >
-        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200
-          ${checked ? 'left-[calc(100%-22px)]' : 'left-0.5'}`}
-        />
-      </button>
-    </div>
-  );
+function SecretLine({ children }) {
+  return <code className="block text-[11px] text-gray-500 break-all">{children}</code>;
 }
 
 export default function Settings() {
-  const [saved, setSaved]                 = useState(false);
-  const { activeWorkspace }               = useWorkspace();
-  const workspaceId                       = activeWorkspace?.id;
+  const { activeWorkspace } = useWorkspace();
+  const workspaceId = activeWorkspace?.id;
+  const { hiddenPlatforms, loading: platformLoading, setPlatformHidden } = usePlatformVisibility(workspaceId);
 
-  // AI API key state
-  const [apiKey, setApiKey]         = useState('');
-  const [showKey, setShowKey]       = useState(false);
-  const [savingKey, setSavingKey]   = useState(false);
-  const [keyStatus, setKeyStatus]   = useState(''); // 'saved' | 'error' | ''
-  const [keyLoaded, setKeyLoaded]   = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
+  const [keyStatus, setKeyStatus] = useState('');
+  const [keyLoaded, setKeyLoaded] = useState(false);
 
   useEffect(() => {
-    if (!workspaceId) return;
-    supabase.from('workspace_settings').select('ai_api_key').eq('workspace_id', workspaceId).maybeSingle()
+    if (!workspaceId) {
+      setKeyLoaded(true);
+      return;
+    }
+
+    setKeyLoaded(false);
+    supabase
+      .from('workspace_settings')
+      .select('ai_api_key')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle()
       .then(({ data }) => {
-        if (data?.ai_api_key) setApiKey(data.ai_api_key);
+        setApiKey(data?.ai_api_key || '');
         setKeyLoaded(true);
       });
   }, [workspaceId]);
 
-  const saveApiKey = async () => {
+  const saveApiKey = async (nextValue = apiKey) => {
     if (!workspaceId) return;
-    setSavingKey(true); setKeyStatus('');
+
+    setSavingKey(true);
+    setKeyStatus('');
     const { error } = await supabase.from('workspace_settings').upsert(
-      { workspace_id: workspaceId, ai_api_key: apiKey.trim(), updated_at: new Date().toISOString() },
-      { onConflict: 'workspace_id' }
+      { workspace_id: workspaceId, ai_api_key: nextValue.trim(), updated_at: new Date().toISOString() },
+      { onConflict: 'workspace_id' },
     );
     setSavingKey(false);
     setKeyStatus(error ? 'error' : 'saved');
     setTimeout(() => setKeyStatus(''), 3000);
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const clearApiKey = () => {
+    setApiKey('');
+    saveApiKey('');
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-5 items-start">
-      {/* ── Kolom kiri: pengaturan umum ── */}
-      <div className="lg:col-span-2 space-y-4 lg:space-y-5">
-        {/* Brand Profile */}
-        <Card>
-          <SectionTitle icon={User} title="Brand Profile" desc="Informasi dasar tentang brand atau kreator kamu." />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input label="Nama Brand" defaultValue="Naya Creative Studio" />
-            <Input label="Email" defaultValue="hello@nayacreative.id" type="email" />
-            <Input label="Industri" defaultValue="Creative Agency" />
-            <Input label="Website" defaultValue="https://nayacreative.id" />
-            <div className="sm:col-span-2">
-              <label className="text-xs font-semibold text-gray-600 block mb-1.5">Deskripsi Singkat</label>
-              <textarea
-                defaultValue="Studio kreatif spesialis branding, desain visual, dan strategi konten untuk UMKM."
-                rows={3}
-                className="w-full px-4 py-2.5 rounded-xl border border-purple-100 text-sm text-gray-700 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all resize-none"
-              />
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-5 items-start">
+        <div className="space-y-5">
+          <Card>
+            <SectionTitle
+              icon={Building2}
+              title="Workspace Info"
+              desc="Informasi workspace yang sedang dipakai."
+            />
+
+            <div className="rounded-2xl border border-purple-50 bg-lavender-50 p-4">
+              <p className="text-xs font-semibold uppercase text-gray-400">Workspace</p>
+              <p className="mt-1 text-lg font-bold text-gray-800">
+                {activeWorkspace?.name || 'Workspace belum dipilih'}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Nama, member, dan akses workspace dikelola dari halaman Team Members.
+              </p>
             </div>
-          </div>
-          <div className="flex justify-end mt-5 pt-4 border-t border-purple-50">
-            <button onClick={handleSave}
-              className={`purple-btn flex items-center gap-2 text-sm transition-all ${saved ? 'from-green-500 to-emerald-400' : ''}`}>
-              {saved ? <><Check size={15} /> Tersimpan!</> : <><Save size={15} /> Simpan Perubahan</>}
-            </button>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Competitor Accounts */}
-        <Card>
-          <SectionTitle icon={Users} title="Competitor Accounts" desc="Akun kompetitor yang sedang dipantau." />
-          <div className="text-center py-6">
-            <p className="text-sm text-gray-400 mb-3">Kelola kompetitor di halaman Competitor Intelligence.</p>
-            <a href="/competitor-intelligence"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-violet-300 text-sm text-violet-600 font-medium hover:bg-violet-50 transition-colors">
-              <Users size={14} /> Buka Competitor Intelligence
-            </a>
-          </div>
-        </Card>
+          <Card>
+            <SectionTitle
+              icon={SettingsIcon}
+              title="Platform Visibility"
+              desc="Sembunyikan platform yang belum dipakai agar tidak muncul sebagai data kosong atau dummy."
+            />
 
-        {/* AI Settings */}
-        <Card>
-          <div>
-              <SectionTitle icon={Sparkles} title="AI Settings" desc="Konfigurasi cara AI Hypothesis Engine bekerja." />
-              <div className="space-y-1 mb-5">
-                <Toggle label="Auto-generate hipotesa baru" desc="AI otomatis membuat hipotesa baru setiap minggu" defaultChecked={true} />
-                <Toggle label="Notifikasi hipotesa baru" desc="Dapatkan notifikasi saat AI menemukan insight baru" defaultChecked={true} />
-                <Toggle label="Validasi otomatis" desc="AI otomatis memvalidasi hipotesa berdasarkan data terbaru" defaultChecked={false} />
-                <Toggle label="Insight bahasa Indonesia" desc="Tampilkan semua insight dan rekomendasi dalam bahasa Indonesia" defaultChecked={true} />
-              </div>
+            <div className="space-y-3">
+              {PLATFORM_NAMES.map((platform) => {
+                const isHidden = hiddenPlatforms.includes(platform);
 
-              {/* API Key section */}
-              <div className="border-t border-purple-50 pt-5">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
-                    <Key size={15} className="text-violet-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">Anthropic API Key</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Opsional. Tanpa API key, analisis kompetitor tetap berjalan dengan template bawaan.
-                      Dengan API key milikmu, analisis akan lebih personal dan mendalam menggunakan Claude AI.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Status pill — no key */}
-                {keyLoaded && !apiKey && (
-                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-lavender-50 rounded-xl">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
-                    <p className="text-xs text-gray-500">Menggunakan analisis template bawaan · Tambah API key untuk hasil yang lebih akurat</p>
-                  </div>
-                )}
-                {keyLoaded && apiKey && (
-                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-green-50 rounded-xl">
-                    <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-                    <p className="text-xs text-green-700 font-medium">API key aktif · Analisis kompetitor menggunakan Claude AI</p>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-600 block mb-1.5">
-                      API Key <span className="font-normal text-gray-400">(dari console.anthropic.com)</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showKey ? 'text' : 'password'}
-                        value={apiKey}
-                        onChange={e => setApiKey(e.target.value)}
-                        placeholder="sk-ant-api03-..."
-                        className="w-full pl-4 pr-10 py-2.5 rounded-xl border border-purple-100 text-sm font-mono text-gray-700 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all"
-                      />
-                      <button onClick={() => setShowKey(v => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
+                return (
+                  <div
+                    key={platform}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-purple-50 bg-white px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">{platform}</p>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {isHidden
+                          ? 'Disembunyikan dari dashboard, account analytics, dan laporan.'
+                          : 'Ditampilkan di dashboard, account analytics, dan laporan.'}
+                      </p>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button onClick={saveApiKey} disabled={savingKey}
-                      className="purple-btn px-5 py-2 text-sm flex items-center gap-2 disabled:opacity-60">
-                      {savingKey ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Save size={13} />}
-                      Simpan API Key
+                    <button
+                      type="button"
+                      disabled={platformLoading}
+                      onClick={() => setPlatformHidden(platform, !isHidden)}
+                      className={`flex-shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-60 ${
+                        isHidden
+                          ? 'border-gray-200 bg-gray-50 text-gray-500 hover:border-violet-200 hover:bg-violet-50 hover:text-violet-600'
+                          : 'border-violet-100 bg-violet-50 text-violet-600 hover:bg-violet-100'
+                      }`}
+                    >
+                      {isHidden ? 'Tampilkan' : 'Sembunyikan'}
                     </button>
-                    {apiKey && (
-                      <button onClick={() => { setApiKey(''); saveApiKey(); }}
-                        className="text-xs text-red-400 hover:text-red-600 font-medium">
-                        Hapus key
-                      </button>
-                    )}
-                    {keyStatus === 'saved' && <span className="text-xs text-green-600 font-medium flex items-center gap-1"><Check size={12} /> Tersimpan</span>}
-                    {keyStatus === 'error'  && <span className="text-xs text-red-500">Gagal menyimpan. Coba lagi.</span>}
                   </div>
+                );
+              })}
+            </div>
+          </Card>
 
-                  <p className="text-[11px] text-gray-400 bg-lavender-50 rounded-xl p-3 leading-relaxed">
-                    API key disimpan terenkripsi di server dan tidak pernah dibagikan ke pihak lain.
-                    Dapatkan API key gratis di{' '}
-                    <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer"
-                      className="text-violet-500 hover:underline font-medium">console.anthropic.com</a>.
-                    Biaya Claude Haiku sangat murah — sekitar Rp 15 per satu analisis kompetitor.
+          <Card>
+            <SectionTitle
+              icon={Sparkles}
+              title="AI Provider"
+              desc="Hanya konfigurasi AI yang saat ini benar-benar dipakai aplikasi."
+            />
+
+            <div className="rounded-2xl border border-purple-50 bg-lavender-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-white">
+                  <Key size={15} className="text-violet-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Competitor Intelligence AI Key</p>
+                  <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                    Field ini dipakai untuk analisis AI di Competitor Intelligence. Jika kosong, sistem tetap memakai
+                    template analisis bawaan.
                   </p>
                 </div>
               </div>
+            </div>
 
-              <div className="border-t border-purple-50 pt-4 mt-4">
-                <label className="text-xs font-semibold text-gray-600 block mb-1.5">Minimum Confidence Score untuk tampil</label>
-                <input type="range" min={50} max={100} defaultValue={70} className="w-full accent-violet-500" />
-                <div className="flex justify-between text-xs text-gray-400 mt-1">
-                  <span>50%</span><span>70% (default)</span><span>100%</span>
+            <div className="mt-4 space-y-3">
+              {keyLoaded && !apiKey && (
+                <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2">
+                  <span className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-400" />
+                  <p className="text-xs text-amber-700">Belum ada API key workspace. Analisis memakai template bawaan.</p>
+                </div>
+              )}
+
+              {keyLoaded && apiKey && (
+                <div className="flex items-center gap-2 rounded-xl bg-green-50 px-3 py-2">
+                  <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-400" />
+                  <p className="text-xs font-medium text-green-700">API key workspace aktif.</p>
+                </div>
+              )}
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-gray-600">
+                  API Key <span className="font-normal text-gray-400">(opsional)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(event) => setApiKey(event.target.value)}
+                    placeholder="sk-ant-api03-..."
+                    className="w-full rounded-xl border border-purple-100 py-2.5 pl-4 pr-10 font-mono text-sm text-gray-700 transition-all focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey((value) => !value)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label={showKey ? 'Sembunyikan API key' : 'Tampilkan API key'}
+                  >
+                    {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
                 </div>
               </div>
-            </div>
-        </Card>
 
-        {/* Report Preferences */}
-        <Card>
-          <SectionTitle icon={FileText} title="Report Preferences" desc="Atur format dan jadwal laporan otomatis." />
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-gray-600 block mb-1.5">Format laporan default</label>
-              <select className="w-full px-4 py-2.5 rounded-xl border border-purple-100 text-sm focus:outline-none focus:border-violet-400">
-                <option>PDF (Landscape)</option>
-                <option>PDF (Portrait)</option>
-                <option>CSV</option>
-                <option>Excel</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-gray-600 block mb-1.5">Frekuensi laporan otomatis</label>
-              <select className="w-full px-4 py-2.5 rounded-xl border border-purple-100 text-sm focus:outline-none focus:border-violet-400">
-                <option>Bulanan (setiap tanggal 1)</option>
-                <option>Mingguan (setiap Senin)</option>
-                <option>Manual</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Toggle label="Sertakan AI Recommendations" desc="Tambahkan rekomendasi AI di setiap laporan" defaultChecked={true} />
-              <Toggle label="Sertakan Competitor Benchmark" desc="Bandingkan performa dengan kompetitor di laporan" defaultChecked={true} />
-              <Toggle label="Kirim laporan via email" desc="Laporan otomatis dikirim ke email terdaftar" defaultChecked={false} />
-            </div>
-            <Input label="Email penerima laporan" placeholder="email@contoh.com" />
-          </div>
-        </Card>
-      </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => saveApiKey()}
+                  disabled={savingKey || !workspaceId}
+                  className="purple-btn flex items-center gap-2 px-5 py-2 text-sm disabled:opacity-60"
+                >
+                  {savingKey ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  ) : (
+                    <Save size={13} />
+                  )}
+                  Simpan API Key
+                </button>
 
-      {/* ── Kolom kanan: Connected Apps + External Data ── */}
-      <div className="lg:col-span-3 space-y-4 lg:space-y-5">
-        {/* Connected Apps */}
-        <Card>
-          <SectionTitle icon={Wifi} title="Connected Apps" desc="Hubungkan platform untuk sync data otomatis." />
-          <ConnectedAccounts embedded />
-        </Card>
+                {apiKey && (
+                  <button
+                    type="button"
+                    onClick={clearApiKey}
+                    disabled={savingKey || !workspaceId}
+                    className="text-xs font-medium text-red-400 hover:text-red-600 disabled:opacity-60"
+                  >
+                    Hapus key
+                  </button>
+                )}
 
-        {/* External Data */}
-        <Card>
-          <SectionTitle icon={Database} title="External Data" desc="Import data analytics dari CSV atau Google Sheets." />
-          <DataSources embedded />
-        </Card>
+                {keyStatus === 'saved' && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-green-600">
+                    <Check size={12} /> Tersimpan
+                  </span>
+                )}
+                {keyStatus === 'error' && <span className="text-xs text-red-500">Gagal menyimpan. Coba lagi.</span>}
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+              <p className="text-sm font-semibold text-gray-700">AI Hypothesis</p>
+              <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                Generate hipotesa memakai Supabase server secrets, bukan field API key workspace di atas. Ini sengaja
+                dipisah supaya key utama tidak terbaca dari browser.
+              </p>
+              <div className="mt-3 space-y-1 rounded-xl bg-white p-3">
+                <SecretLine>supabase secrets set AI_API_KEY=&quot;isi_key_provider&quot;</SecretLine>
+                <SecretLine>supabase secrets set AI_BASE_URL=&quot;https://provider.example/v1&quot;</SecretLine>
+                <SecretLine>supabase secrets set AI_MODEL=&quot;nama_model&quot;</SecretLine>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="space-y-5">
+          <Card>
+            <SectionTitle icon={Wifi} title="Connected Apps" desc="Hubungkan platform yang ingin disync otomatis." />
+            <ConnectedAccounts embedded />
+          </Card>
+
+          <Card>
+            <SectionTitle
+              icon={Database}
+              title="Data Sources"
+              desc="Import CSV atau Google Sheets saat data belum bisa ditarik otomatis."
+            />
+            <DataSources embedded />
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { contentData } from '../data/mockData';
+import { withTimeout } from '../lib/async';
 
 export function useContents(workspaceId) {
   const [contents, setContents] = useState([]);
@@ -15,7 +16,7 @@ export function useContents(workspaceId) {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('contents')
         .select(`
           *,
@@ -25,7 +26,7 @@ export function useContents(workspaceId) {
           )
         `)
         .eq('workspace_id', workspaceId)
-        .order('published_at', { ascending: false });
+        .order('published_at', { ascending: false }), 7000, 'Contents request timeout');
 
       if (error) throw error;
 

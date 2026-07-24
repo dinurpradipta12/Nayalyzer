@@ -11,6 +11,7 @@ import { useSocialData } from '../hooks/useSocialData';
 import { SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { AnalyticsSkeleton } from '../components/ui/Skeleton';
+import { usePlatformVisibility } from '../lib/platformVisibility';
 
 const PLATFORM_COLORS = { Instagram: '#E040FB', TikTok: '#26C6DA', Threads: '#78909C' };
 
@@ -361,8 +362,16 @@ export default function AccountAnalytics() {
   const [activeTab, setActiveTab] = useState('Instagram');
   const { activeWorkspace } = useWorkspace();
   const { accounts, contents, metrics, syncing, loading, reload } = useSocialData(activeWorkspace?.id);
+  const { visiblePlatforms } = usePlatformVisibility(activeWorkspace?.id);
+  const visibleTabs = visiblePlatforms.length ? visiblePlatforms : tabs;
 
   const demo = !SUPABASE_ENABLED;
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0] || 'Instagram');
+    }
+  }, [activeTab, visibleTabs]);
 
   // Merge real data into mock for the active platform
   const data = useMemo(() => {
@@ -431,7 +440,7 @@ export default function AccountAnalytics() {
       {/* Tabs */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex gap-2 bg-white rounded-2xl p-1 shadow-card border border-purple-50">
-          {tabs.map(tab => (
+          {visibleTabs.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}

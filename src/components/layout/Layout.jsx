@@ -1,6 +1,6 @@
-import { Menu, Bell, Sun, Moon, ChevronDown } from 'lucide-react';
+import { Menu, Bell, Sun, Moon, ChevronDown, Plus } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import { useApp } from '../../context/AppContext';
@@ -24,6 +24,7 @@ function WorkspaceSwitcher() {
   const { activeWorkspace, workspaces, switchWorkspace } = useWorkspace();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -55,6 +56,21 @@ function WorkspaceSwitcher() {
               {ws.name}
             </button>
           ))}
+          <div className="border-t border-purple-50 p-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                navigate('/create-workspace?mode=new');
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-violet-600 transition-colors hover:bg-violet-50"
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-violet-50">
+                <Plus size={12} />
+              </span>
+              Tambah Workspace
+            </button>
+          </div>
         </div>
       )}
     </div>

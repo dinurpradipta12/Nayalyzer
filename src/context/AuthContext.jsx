@@ -1,7 +1,9 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
+import { withTimeout } from '../lib/async';
 
 const AuthContext = createContext(null);
+const AUTH_CACHE_KEY = 'naya_auth_cache';
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
@@ -11,6 +13,8 @@ export function AuthProvider({ children }) {
 
   // ── Bootstrap session ───────────────────────────────────
   useEffect(() => {
+    let mounted = true;
+
     if (!SUPABASE_ENABLED) {
       // Demo mode: restore from localStorage
       const stored = localStorage.getItem('naya_auth');
@@ -27,49 +31,78 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const cached = localStorage.getItem(AUTH_CACHE_KEY);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed.user) {
+          setUser(parsed.user);
+          setProfile(parsed.profile || null);
+          setLoading(false);
+        }
+      } catch {
+        localStorage.removeItem(AUTH_CACHE_KEY);
+      }
+    }
+
+    withTimeout(supabase.auth.getSession(), 5000, 'Auth session timeout').then(({ data: { session } }) => {
+      if (!mounted) return;
       if (session?.user) {
         setUser(session.user);
-        fetchProfile(session.user.id);
+        fetchProfile(session.user);
       } else {
+        localStorage.removeItem(AUTH_CACHE_KEY);
+        setUser(null);
+        setProfile(null);
         setLoading(false);
       }
+    }).catch((e) => {
+      console.warn('getSession:', e.message);
+      if (mounted && !cached) setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (!mounted) return;
         if (session?.user) {
           setUser(session.user);
-          await fetchProfile(session.user.id);
+          await fetchProfile(session.user);
         } else {
+          localStorage.removeItem(AUTH_CACHE_KEY);
           setUser(null);
           setProfile(null);
           setLoading(false);
         }
       }
     );
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const fetchProfile = async (userId) => {
+  const fetchProfile = async (authUser) => {
     if (!SUPABASE_ENABLED) return;
     try {
-      const { data, error } = await supabase
+      const { data, error } = await withTimeout(supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
-        .single();
+        .eq('id', authUser.id)
+        .single(), 5000, 'Profile request timeout');
       if (!error && data) {
         setProfile(data);
+        localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify({ user: authUser, profile: data }));
       } else {
         // Table may not exist yet (migrations pending) — use auth metadata as fallback
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setProfile({
-            id: user.id,
-            email: user.email,
-            full_name: user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? 'User',
-          });
+        const { data: { user: fallbackUser } } = await withTimeout(supabase.auth.getUser(), 5000, 'User request timeout');
+        if (fallbackUser) {
+          const fallbackProfile = {
+            id: fallbackUser.id,
+            email: fallbackUser.email,
+            full_name: fallbackUser.user_metadata?.full_name ?? fallbackUser.email?.split('@')[0] ?? 'User',
+          };
+          setProfile(fallbackProfile);
+          localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify({ user: fallbackUser, profile: fallbackProfile }));
         }
       }
     } catch (e) {
@@ -94,8 +127,15 @@ export function AuthProvider({ children }) {
   const signIn = async ({ email, password }) => {
     if (!SUPABASE_ENABLED) return demoLogin(email);
     setError(null);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await withTimeout(
+      supabase.auth.signInWithPassword({ email, password }),
+      10000,
+      'Login timeout'
+    );
     if (error) { setError(error.message); return { error }; }
+    if (data?.user) {
+      localStorage.setItem(AUTH_CACHE_KEY, JSON.stringify({ user: data.user, profile: null }));
+    }
     return { data };
   };
 
@@ -106,6 +146,7 @@ export function AuthProvider({ children }) {
       return;
     }
     await supabase.auth.signOut();
+    localStorage.removeItem(AUTH_CACHE_KEY);
     setUser(null); setProfile(null);
   };
 

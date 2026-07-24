@@ -12,6 +12,8 @@ import { useWorkspace }   from '../context/WorkspaceContext';
 import { useContents }    from '../hooks/useContents';
 import { useCompetitors } from '../hooks/useCompetitors';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
+import { withTimeout } from '../lib/async';
+import { usePlatformVisibility } from '../lib/platformVisibility';
 
 // ── helpers ────────────────────────────────────────────────────
 const fmt = (n) =>
@@ -56,6 +58,7 @@ function StatCard({ label, value, sub, icon: Icon, color = 'text-violet-600', bg
 export default function Reports() {
   const { activeWorkspace } = useWorkspace();
   const wsId = activeWorkspace?.id;
+  const { visiblePlatforms, visiblePlatformKeys } = usePlatformVisibility(wsId);
 
   const { contents, loading: contentsLoading } = useContents(wsId);
   const { competitors }                        = useCompetitors(wsId);
@@ -71,20 +74,30 @@ export default function Reports() {
       setMetricsLoading(true);
       try {
         // 1. Get social accounts for this workspace
-        const { data: accs } = await supabase
+        const { data: accs } = await withTimeout(supabase
           .from('social_accounts')
           .select('id, platform, username, account_name, followers_count')
-          .eq('workspace_id', wsId);
+          .eq('workspace_id', wsId), 6000, 'Report accounts request timeout');
 
-        if (!accs?.length) { setMetricsLoading(false); return; }
+        const visibleNames = visiblePlatforms.length ? visiblePlatforms : ['Instagram', 'TikTok', 'Threads'];
+        const visibleKeys = visiblePlatformKeys.length ? visiblePlatformKeys : ['instagram', 'tiktok', 'threads'];
+        const visibleAccs = (accs ?? []).filter(account => visibleNames.includes(account.platform));
+
+        if (!visibleAccs?.length) {
+          setPlatforms([]);
+          setFollowerTrend([]);
+          setEngagementTrend([]);
+          setMetricsLoading(false);
+          return;
+        }
 
         // 2. Get all account_metrics by social_account_id
-        const ids = accs.map(a => a.id);
-        const { data: mets } = await supabase
+        const ids = visibleAccs.map(a => a.id);
+        const { data: mets } = await withTimeout(supabase
           .from('account_metrics')
           .select('social_account_id, followers, engagement_rate, reach, metric_date')
           .in('social_account_id', ids)
-          .order('metric_date', { ascending: false });
+          .order('metric_date', { ascending: false }), 7000, 'Report metrics request timeout');
 
         // Map latest metric per account
         const latestMap = {};
@@ -94,7 +107,7 @@ export default function Reports() {
 
         // Deduplicate by platform — merge all accounts per platform
         const byPlatform = {};
-        accs.forEach(a => {
+        visibleAccs.forEach(a => {
           const m = latestMap[a.id] ?? {};
           const label = a.platform ?? 'Instagram';
           const key = label.toLowerCase();
@@ -118,13 +131,13 @@ export default function Reports() {
 
         // 3. Build trend data grouped by month
         const accMap = {};
-        accs.forEach(a => { accMap[a.id] = (a.platform ?? '').toLowerCase(); });
+        visibleAccs.forEach(a => { accMap[a.id] = (a.platform ?? '').toLowerCase(); });
         const trendMap = {};
         (mets ?? []).forEach(m => {
           const month = new Date(m.metric_date).toLocaleString('id-ID', { month: 'short', year: '2-digit' });
           if (!trendMap[month]) trendMap[month] = { month };
           const p = accMap[m.social_account_id];
-          if (p && !trendMap[month][p]) {
+          if (p && visibleKeys.includes(p) && !trendMap[month][p]) {
             trendMap[month][p]         = m.followers ?? 0;
             trendMap[month][p + '_er'] = m.engagement_rate ?? 0;
           }
@@ -140,7 +153,7 @@ export default function Reports() {
         setMetricsLoading(false);
       }
     })();
-  }, [wsId]);
+  }, [wsId, visiblePlatforms, visiblePlatformKeys]);
 
   // ── Derived metrics ──────────────────────────────────────────
   // platforms is now set directly via useEffect above
@@ -151,18 +164,26 @@ export default function Reports() {
   const avgGrowth      = useMemo(() => platforms.length ? platforms.reduce((s, p) => s + p.growth, 0) / platforms.length : 0, [platforms]);
 
   const topContent = useMemo(() =>
-    [...contents].sort((a, b) => (b.performanceScore || b.engagementRate) - (a.performanceScore || a.engagementRate)).slice(0, 5),
-  [contents]);
+    [...contents]
+      .filter(c => (visiblePlatforms.length ? visiblePlatforms : ['Instagram', 'TikTok', 'Threads']).includes(c.platform))
+      .sort((a, b) => (b.performanceScore || b.engagementRate) - (a.performanceScore || a.engagementRate))
+      .slice(0, 5),
+  [contents, visiblePlatforms]);
 
   const lowContent = useMemo(() =>
-    [...contents].filter(c => c.status === 'Underperform' || c.status === 'Needs Improvement' || c.performanceScore < 50).slice(0, 3),
-  [contents]);
+    [...contents]
+      .filter(c => (visiblePlatforms.length ? visiblePlatforms : ['Instagram', 'TikTok', 'Threads']).includes(c.platform))
+      .filter(c => c.status === 'Underperform' || c.status === 'Needs Improvement' || c.performanceScore < 50)
+      .slice(0, 3),
+  [contents, visiblePlatforms]);
 
   const contentByFormat = useMemo(() => {
     const map = {};
-    contents.forEach(c => { map[c.format] = (map[c.format] ?? 0) + 1; });
+    contents
+      .filter(c => (visiblePlatforms.length ? visiblePlatforms : ['Instagram', 'TikTok', 'Threads']).includes(c.platform))
+      .forEach(c => { map[c.format] = (map[c.format] ?? 0) + 1; });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [contents]);
+  }, [contents, visiblePlatforms]);
 
 
   // AI score: simple weighted average of platform scores

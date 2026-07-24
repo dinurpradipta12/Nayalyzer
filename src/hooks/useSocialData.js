@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
+import { withTimeout } from '../lib/async';
 
 const CACHE_TTL_MS   = 6 * 60 * 60 * 1000; // 6 jam — ketika cache kadaluarsa, sync lagi
 const STALE_SYNC_MS  = 60 * 60 * 1000;      // sync jika data > 1 jam dari server
@@ -22,14 +23,23 @@ function writeCache(wsId, data) {
   } catch {}
 }
 
+export function clearSocialDataCache(wsId) {
+  try {
+    if (wsId) localStorage.removeItem(cacheKey(wsId));
+  } catch {}
+}
+
 async function triggerSync(connectionId, workspaceId) {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await withTimeout(supabase.auth.getSession(), 5000, 'Sync session timeout');
     const token = session?.access_token;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 15000);
     const res = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/platform-sync`,
       {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -37,6 +47,7 @@ async function triggerSync(connectionId, workspaceId) {
         body: JSON.stringify({ connection_id: connectionId, workspace_id: workspaceId, sync_type: 'full' }),
       }
     );
+    window.clearTimeout(timeoutId);
     return res.ok ? res.json() : null;
   } catch (e) {
     console.warn('sync error:', e.message);
@@ -45,57 +56,64 @@ async function triggerSync(connectionId, workspaceId) {
 }
 
 async function fetchFromDB(workspaceId) {
-  // Load connections
-  const { data: conns } = await supabase
+  const since = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+
+  const [connResult, accountResult, metricResult, contentResult] = await withTimeout(Promise.all([
+    supabase
     .from('platform_connections')
     .select('id, platform, provider_username, connection_status, last_synced_at')
     .eq('workspace_id', workspaceId)
-    .eq('connection_status', 'connected');
-
-  // Load social_accounts
-  const { data: socialAccts } = await supabase
+      .eq('connection_status', 'connected'),
+    supabase
     .from('social_accounts')
     .select('*')
-    .eq('workspace_id', workspaceId);
+      .eq('workspace_id', workspaceId),
+    supabase
+      .from('account_metrics')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .gte('metric_date', since)
+      .order('metric_date', { ascending: true }),
+    supabase
+      .from('contents')
+      .select(`
+        id, platform, content_type, caption, content_url, thumbnail_url, published_at,
+        content_metrics (
+          likes, comments, shares, views, saves, reach, impressions, avg_watch_time, engagement_rate, engagement_count, metric_date
+        )
+      `)
+      .eq('workspace_id', workspaceId)
+      .order('published_at', { ascending: false })
+      .limit(100),
+  ]), 7000, 'Social data request timeout');
+
+  const conns = connResult.data || [];
+  const connectedAccountIds = new Set(conns.map(conn => conn.social_account_id).filter(Boolean));
+  const connectedPlatforms = new Set(conns.map(conn => conn.platform?.toLowerCase()).filter(Boolean));
+  const socialAccts = (accountResult.data || []).filter(account => {
+    const platformKey = account.platform?.toLowerCase();
+    return account.connection_status === 'connected'
+      && (connectedAccountIds.has(account.id) || connectedPlatforms.has(platformKey));
+  });
+  const metricRows = metricResult.data || [];
+  const contentRows = (contentResult.data || []).filter(content => connectedPlatforms.has(content.platform?.toLowerCase()));
 
   const accounts = {};
-  for (const a of (socialAccts || [])) {
+  for (const a of socialAccts) {
     accounts[a.platform.toLowerCase()] = a;
   }
 
-  // Load 90-day account_metrics
-  const since = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
-  const { data: metricRows } = await supabase
-    .from('account_metrics')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .gte('metric_date', since)
-    .order('metric_date', { ascending: true });
-
   const metricByPlatform = {};
-  for (const a of (socialAccts || [])) {
-    const rows = (metricRows || []).filter(r => r.social_account_id === a.id);
+  for (const a of socialAccts) {
+    const rows = metricRows.filter(r => r.social_account_id === a.id);
     if (rows.length) metricByPlatform[a.platform.toLowerCase()] = rows;
   }
 
-  // Load contents + latest metrics
-  const { data: contentRows } = await supabase
-    .from('contents')
-    .select(`
-      id, platform, content_type, caption, content_url, thumbnail_url, published_at,
-      content_metrics (
-        likes, comments, shares, views, saves, reach, impressions, avg_watch_time, engagement_rate, engagement_count, metric_date
-      )
-    `)
-    .eq('workspace_id', workspaceId)
-    .order('published_at', { ascending: false })
-    .limit(100);
-
   return {
-    connections: conns || [],
+    connections: conns,
     accounts,
     metrics: metricByPlatform,
-    contents: contentRows || [],
+    contents: contentRows,
   };
 }
 
@@ -115,36 +133,39 @@ export function useSocialData(workspaceId) {
       setLoading(false);
     }
 
-    // 2. Cek apakah perlu sync (background)
-    if (syncingRef.current) return;
+    try {
+      // 2. Ambil data fresh dulu. Sync platform tidak boleh memblokir render awal.
+      const fresh = await fetchFromDB(workspaceId);
+      setData(fresh);
+      setLoading(false);
+      writeCache(workspaceId, fresh);
 
-    // Load connections untuk cek last_synced_at
-    const { data: conns } = await supabase
-      .from('platform_connections')
-      .select('id, platform, last_synced_at, connection_status')
-      .eq('workspace_id', workspaceId)
-      .eq('connection_status', 'connected');
+      if (syncingRef.current) return;
+      const staleConns = fresh.connections.filter(c => {
+        if (forceSync) return true;
+        if (!c.last_synced_at) return true;
+        return (Date.now() - new Date(c.last_synced_at).getTime()) > STALE_SYNC_MS;
+      });
 
-    const staleConns = (conns || []).filter(c => {
-      if (forceSync) return true;
-      if (!c.last_synced_at) return true;
-      return (Date.now() - new Date(c.last_synced_at).getTime()) > STALE_SYNC_MS;
-    });
-
-    if (staleConns.length > 0) {
-      syncingRef.current = true;
-      setSyncing(true);
-      // Sync semua stale connections secara paralel (background)
-      await Promise.all(staleConns.map(c => triggerSync(c.id, workspaceId)));
-      syncingRef.current = false;
-      setSyncing(false);
+      if (staleConns.length > 0) {
+        syncingRef.current = true;
+        setSyncing(true);
+        Promise.all(staleConns.map(c => triggerSync(c.id, workspaceId)))
+          .then(() => fetchFromDB(workspaceId))
+          .then((synced) => {
+            setData(synced);
+            writeCache(workspaceId, synced);
+          })
+          .catch((e) => console.warn('background sync:', e.message))
+          .finally(() => {
+            syncingRef.current = false;
+            setSyncing(false);
+          });
+      }
+    } catch (e) {
+      console.warn('load social data:', e.message);
+      setLoading(false);
     }
-
-    // 3. Ambil data fresh dari DB (setelah sync atau kalau cache tidak ada)
-    const fresh = await fetchFromDB(workspaceId);
-    setData(fresh);
-    setLoading(false);
-    writeCache(workspaceId, fresh); // simpan ke cache
   }, [workspaceId]);
 
   useEffect(() => { loadAndSync(); }, [loadAndSync]);

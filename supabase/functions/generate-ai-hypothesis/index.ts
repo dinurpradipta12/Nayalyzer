@@ -2,13 +2,17 @@
 // Supabase Edge Function: generate-ai-hypothesis
 // Fetches analytics data, sends to OpenAI, saves hypotheses.
 // Deploy: supabase functions deploy generate-ai-hypothesis
-// Secrets: supabase secrets set OPENAI_API_KEY=sk-...
+// Secrets:
+// - OpenAI default: supabase secrets set OPENAI_API_KEY=sk-...
+// - OpenAI-compatible provider: supabase secrets set AI_API_KEY=... AI_BASE_URL=https://provider.example/v1 AI_MODEL=...
 // ============================================================
 
 import { serve }        from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const OPENAI_API_KEY  = Deno.env.get('OPENAI_API_KEY') ?? '';
+const AI_API_KEY      = Deno.env.get('AI_API_KEY') ?? Deno.env.get('OPENAI_API_KEY') ?? '';
+const AI_BASE_URL     = (Deno.env.get('AI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/+$/, '');
+const AI_MODEL        = Deno.env.get('AI_MODEL') ?? 'gpt-4o-mini';
 const SUPABASE_URL    = Deno.env.get('SUPABASE_URL')   ?? '';
 const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
@@ -215,28 +219,36 @@ async function fetchAnalyticsData(supabase: ReturnType<typeof createClient>, wor
 
 // ── Call OpenAI ───────────────────────────────────────────────
 async function callOpenAI(context: string): Promise<unknown[]> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const requestBody = {
+    model: AI_MODEL,
+    temperature: 0.4,
+    messages: [
+      { role: 'system', content: buildSystemPrompt() },
+      { role: 'user',   content: `Analisa data berikut dan hasilkan 5 hipotesa. Output harus JSON valid dengan root {"hypotheses":[...]}:\n\n${context}` },
+    ],
+  };
+
+  const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Authorization': `Bearer ${AI_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      temperature: 0.4,
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'hypothesis_output',
-          strict: true,
-          schema: HYPOTHESIS_SCHEMA,
-        },
-      },
-      messages: [
-        { role: 'system', content: buildSystemPrompt() },
-        { role: 'user',   content: `Analisa data berikut dan hasilkan 5 hipotesa:\n\n${context}` },
-      ],
-    }),
+    body: JSON.stringify(
+      AI_BASE_URL.includes('api.openai.com')
+        ? {
+            ...requestBody,
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'hypothesis_output',
+                strict: true,
+                schema: HYPOTHESIS_SCHEMA,
+              },
+            },
+          }
+        : requestBody
+    ),
   });
 
   if (!response.ok) {
@@ -246,7 +258,11 @@ async function callOpenAI(context: string): Promise<unknown[]> {
 
   const json = await response.json();
   const content = json.choices?.[0]?.message?.content ?? '{}';
-  const parsed = JSON.parse(content);
+  const jsonText = String(content)
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  const parsed = JSON.parse(jsonText);
   return parsed.hypotheses ?? [];
 }
 
@@ -317,9 +333,9 @@ serve(async (req) => {
     // 2. Build context
     const context = buildContext(data as Record<string,unknown>, platform, date_range);
 
-    // 3. Call OpenAI
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY not configured. Set it via: supabase secrets set OPENAI_API_KEY=sk-...');
+    // 3. Call OpenAI-compatible endpoint
+    if (!AI_API_KEY) {
+      throw new Error('AI_API_KEY/OPENAI_API_KEY not configured. Set it via Supabase secrets.');
     }
     const hypotheses = await callOpenAI(context);
 

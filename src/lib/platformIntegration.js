@@ -10,6 +10,8 @@ const FUNCTION_BASE = SUPABASE_ENABLED
   ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
   : null;
 
+let activeOAuthPopup = null;
+
 // ── OAuth popup flow ──────────────────────────────────────────
 export async function initiateOAuth(platform, workspaceId) {
   if (!SUPABASE_ENABLED) {
@@ -28,8 +30,14 @@ export async function initiateOAuth(platform, workspaceId) {
 
   // Open popup
   return new Promise((resolve) => {
+    try {
+      if (activeOAuthPopup && !activeOAuthPopup.closed) activeOAuthPopup.close();
+    } catch {}
+
     const popup = window.open(data.auth_url, `oauth_${platform}`, 'width=600,height=700,scrollbars=yes');
     if (!popup) { resolve({ error: 'Popup diblokir browser. Izinkan popup untuk halaman ini.' }); return; }
+    activeOAuthPopup = popup;
+    popup.focus?.();
 
     // Poll for popup close or URL change
     const timer = setInterval(() => {
@@ -50,7 +58,13 @@ export async function initiateOAuth(platform, workspaceId) {
     }, 500);
 
     // Timeout after 5 minutes
-    setTimeout(() => { clearInterval(timer); popup.close(); resolve({ error: 'timeout' }); }, 300000);
+    setTimeout(() => {
+      clearInterval(timer);
+      try {
+        if (!popup.closed) popup.close();
+      } catch {}
+      resolve({ error: 'timeout' });
+    }, 300000);
   });
 }
 
