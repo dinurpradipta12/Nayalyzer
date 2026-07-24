@@ -1,5 +1,5 @@
-// profile-analyzer — scrape public profile data for Instagram / TikTok
-// POST { platform: 'instagram' | 'tiktok', username: string }
+// profile-analyzer — scrape public profile data for Instagram / TikTok / Threads
+// POST { platform: 'instagram' | 'tiktok' | 'threads', username: string }
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 const corsHeaders = {
@@ -9,6 +9,8 @@ const corsHeaders = {
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+const MOBILE_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 
 async function scrapeInstagram(username: string) {
   const res = await fetch(
@@ -88,6 +90,100 @@ async function scrapeTikTok(username: string) {
   };
 }
 
+function parseJsonString(value = '') {
+  const decoded = value
+    .replace(/&amp;/g, '&')
+    .replace(/&#064;/g, '@')
+    .replace(/&#x2022;/g, '•')
+    .replace(/&quot;/g, '"');
+  try {
+    return JSON.parse(`"${decoded.replace(/"/g, '\\"')}"`);
+  } catch {
+    return decoded.replace(/\\u0026/g, '&').replace(/\\\//g, '/');
+  }
+}
+
+function pickFirstMatch(html: string, patterns: RegExp[]) {
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) return parseJsonString(match[1]);
+  }
+  return '';
+}
+
+function parseCompactCount(raw = '') {
+  const clean = raw.replace(/,/g, '').trim().toLowerCase();
+  const match = clean.match(/([\d.]+)\s*([km])?/);
+  if (!match) return 0;
+  const num = Number(match[1]);
+  if (!Number.isFinite(num)) return 0;
+  if (match[2] === 'm') return Math.round(num * 1_000_000);
+  if (match[2] === 'k') return Math.round(num * 1_000);
+  return Math.round(num);
+}
+
+async function scrapeThreads(username: string) {
+  const res = await fetch(`https://www.threads.com/@${encodeURIComponent(username)}`, {
+    headers: {
+      'User-Agent': MOBILE_UA,
+      Accept: 'text/html,application/xhtml+xml',
+    },
+  });
+  if (!res.ok) throw new Error(`Threads responded ${res.status}`);
+  const html = await res.text();
+
+  const ogTitle = pickFirstMatch(html, [
+    /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i,
+  ]);
+  const ogDescription = pickFirstMatch(html, [
+    /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i,
+  ]);
+  const profilePic = pickFirstMatch(html, [
+    /"profile_pic_url"\s*:\s*"([^"]+)"/,
+    /"profile_pic_url_hd"\s*:\s*"([^"]+)"/,
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+  ]);
+  const fullName = pickFirstMatch(html, [
+    /"full_name"\s*:\s*"([^"]+)"/,
+    /"name"\s*:\s*"([^"]+)"/,
+  ]) || ogTitle.replace(/\s*\(@[^)]+\).*$/i, '').replace(/\s*on Threads.*$/i, '').trim();
+  const bio = pickFirstMatch(html, [
+    /"biography"\s*:\s*"([^"]*)"/,
+    /"bio"\s*:\s*"([^"]*)"/,
+  ]) || ogDescription.replace(/\s*\d[\d,.]*\s*[kKmM]?\s+followers?.*$/i, '').trim();
+  const followers = parseCompactCount(
+    pickFirstMatch(html, [
+      /"follower_count"\s*:\s*(\d+)/,
+      /"followers_count"\s*:\s*(\d+)/,
+      /([\d,.]+\s*[kKmM]?)\s+followers/i,
+    ]),
+  );
+  const postsCount = parseCompactCount(
+    pickFirstMatch(html, [
+      /"threads_count"\s*:\s*(\d+)/,
+      /"media_count"\s*:\s*(\d+)/,
+    ]),
+  );
+
+  return {
+    source: 'live',
+    platform: 'threads',
+    username,
+    full_name: fullName || username,
+    biography: bio,
+    profile_pic: profilePic,
+    followers,
+    following: 0,
+    posts_count: postsCount,
+    is_verified: /"is_verified"\s*:\s*true/.test(html),
+    is_private: /"is_private"\s*:\s*true/.test(html),
+    external_url: '',
+    recent_posts: [],
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -124,8 +220,9 @@ serve(async (req) => {
     let result;
     if (platform === 'instagram') result = await scrapeInstagram(clean);
     else if (platform === 'tiktok') result = await scrapeTikTok(clean);
+    else if (platform === 'threads') result = await scrapeThreads(clean);
     else {
-      return new Response(JSON.stringify({ error: 'platform harus instagram atau tiktok' }), {
+      return new Response(JSON.stringify({ error: 'platform harus instagram, tiktok, atau threads' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

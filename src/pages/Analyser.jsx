@@ -13,11 +13,19 @@ import {
 import ChartCard from '../components/ui/ChartCard';
 import PlatformBadge from '../components/ui/PlatformBadge';
 import { supabase } from '../lib/supabase';
+import { useWorkspace } from '../context/WorkspaceContext';
+import { usePlatformVisibility } from '../lib/platformVisibility';
 
 // Palet ungu/lavender khas Nayalyzer
 const AUTH_COLORS  = { real: '#8B5CF6', mass: '#C084FC', influencer: '#DDD6FE', suspicious: '#F0ABFC' };
+const ANALYSER_PLATFORM_KEYS = ['instagram', 'tiktok', 'threads'];
+const PLATFORM_LABELS = { instagram: 'Instagram', tiktok: 'TikTok', threads: 'Threads' };
 
-// Proxy gambar CDN (Instagram/TikTok memblokir hotlink langsung)
+function platformLabel(platform) {
+  return PLATFORM_LABELS[platform] || platform;
+}
+
+// Proxy gambar CDN (Instagram/TikTok/Threads memblokir hotlink langsung)
 function proxyImg(src) {
   if (!src) return null;
   return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/profile-analyzer?img=${encodeURIComponent(src)}`;
@@ -672,6 +680,7 @@ function AuthenticityChart({ data, height = 190, outerRadius = 72 }) {
 function CompareSearchBox({
   platform,
   setPlatform,
+  platformOptions,
   username,
   setUsername,
   loading,
@@ -695,11 +704,11 @@ function CompareSearchBox({
       </div>
 
       <div className="flex gap-2 bg-lavender-50 rounded-xl p-1 mb-3">
-        {['instagram', 'tiktok'].map(p => (
+        {platformOptions.map(p => (
           <button key={p} onClick={() => setPlatform(p)}
             className={`flex-1 py-1.5 rounded-lg text-xs font-medium capitalize transition-all
               ${platform === p ? 'bg-white text-violet-600 shadow-sm' : 'text-gray-500 hover:text-violet-600'}`}>
-            {p === 'instagram' ? 'Instagram' : 'TikTok'}
+            {platformLabel(p)}
           </button>
         ))}
       </div>
@@ -789,7 +798,7 @@ function ProfileAnalysisColumn({ profile, platform, sourceLabel, onClose }) {
                   {profile.is_verified && <BadgeCheck size={16} className="text-blue-500 flex-shrink-0" />}
                 </p>
                 <span className="text-[10px] font-semibold bg-violet-50 text-violet-600 px-2 py-0.5 rounded-full">{a.tier}</span>
-                <PlatformBadge platform={platform === 'instagram' ? 'Instagram' : 'TikTok'} size="xs" />
+                <PlatformBadge platform={platformLabel(platform)} size="xs" />
               </div>
               <p className="text-sm text-gray-400 truncate">@{profile.username}</p>
               {profile.biography && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{profile.biography}</p>}
@@ -951,7 +960,7 @@ function InfluencerModePanel({ profile, platform, analytics }) {
                   {profile.is_verified && <BadgeCheck size={16} className="text-blue-500 flex-shrink-0" />}
                 </p>
                 <span className="text-[10px] font-semibold bg-violet-50 text-violet-600 px-2 py-0.5 rounded-full">{analytics.tier}</span>
-                <PlatformBadge platform={platform === 'instagram' ? 'Instagram' : 'TikTok'} size="xs" />
+                <PlatformBadge platform={platformLabel(platform)} size="xs" />
               </div>
               <p className="text-sm text-gray-400 truncate">@{profile.username}</p>
               {profile.biography && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{profile.biography}</p>}
@@ -1120,7 +1129,7 @@ function BrandModePanel({ profile, platform, analytics }) {
                   {profile.is_verified && <BadgeCheck size={16} className="text-blue-500 flex-shrink-0" />}
                 </p>
                 <span className="text-[10px] font-semibold bg-violet-50 text-violet-600 px-2 py-0.5 rounded-full">{brand.primaryNiche}</span>
-                <PlatformBadge platform={platform === 'instagram' ? 'Instagram' : 'TikTok'} size="xs" />
+                <PlatformBadge platform={platformLabel(platform)} size="xs" />
               </div>
               <p className="text-sm text-gray-400 truncate">@{profile.username}</p>
               {profile.biography && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{profile.biography}</p>}
@@ -1307,6 +1316,12 @@ function HistoryDropdown({ history, onSelect, onDelete, onClear, align = 'right'
 // ── Main page ──────────────────────────────────────────────────
 export default function Analyser() {
   const saved = useMemo(readSavedResult, []);
+  const { activeWorkspace } = useWorkspace();
+  const { visiblePlatformKeys } = usePlatformVisibility(activeWorkspace?.id);
+  const platformOptions = useMemo(() => {
+    const visible = visiblePlatformKeys.filter(key => ANALYSER_PLATFORM_KEYS.includes(key));
+    return visible.length ? visible : ['instagram'];
+  }, [visiblePlatformKeys]);
   const [platform, setPlatform] = useState(saved?.platform ?? 'instagram');
   const [username, setUsername] = useState(saved?.username ?? '');
   const [loading, setLoading]   = useState(false);
@@ -1323,6 +1338,20 @@ export default function Analyser() {
   const [influencerMode, setInfluencerMode] = useState(false);
   const [brandMode, setBrandMode] = useState(false);
   const resizingRef = useRef(false);
+
+  useEffect(() => {
+    if (!platformOptions.includes(platform)) {
+      setPlatform(platformOptions[0]);
+      setProfile(null);
+      setUsername('');
+      localStorage.removeItem(STORAGE_KEY);
+    }
+    if (!platformOptions.includes(comparePlatform)) {
+      setComparePlatform(platformOptions[0]);
+      setCompareProfile(null);
+      setCompareUsername('');
+    }
+  }, [platformOptions, platform, comparePlatform]);
 
   const toggleInfluencerMode = () => {
     setInfluencerMode(value => {
@@ -1453,13 +1482,13 @@ export default function Analyser() {
 
         {/* Platform selector */}
         <div className="flex gap-2 bg-white rounded-2xl p-1 shadow-card border border-purple-50 mb-4">
-          {['instagram', 'tiktok'].map(p => (
+          {platformOptions.map(p => (
             <button key={p} onClick={() => setPlatform(p)}
               className={`px-5 py-2 rounded-xl text-sm font-medium transition-all capitalize
                 ${platform === p
                   ? 'bg-gradient-to-r from-violet-500 to-purple-400 text-white shadow-purple'
                   : 'text-gray-500 hover:text-violet-600'}`}>
-              {p === 'instagram' ? 'Instagram' : 'TikTok'}
+              {platformLabel(p)}
             </button>
           ))}
         </div>
@@ -1473,7 +1502,7 @@ export default function Analyser() {
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
-                placeholder={`username ${platform === 'instagram' ? 'Instagram' : 'TikTok'}...`}
+                placeholder={`username ${platformLabel(platform)}...`}
                 className="w-full pl-9 pr-4 py-3 rounded-2xl border border-purple-100 bg-white text-sm text-gray-700 focus:outline-none focus:border-violet-400 shadow-sm"
               />
             </div>
@@ -1496,13 +1525,16 @@ export default function Analyser() {
             <AlertCircle size={15} /> {error}
           </div>
         )}
-        <p className="text-[11px] text-gray-300 mt-6">Threads belum didukung untuk analisa profil publik</p>
+        {platformOptions.includes('threads') && (
+          <p className="text-[11px] text-gray-300 mt-6">Threads memakai scraping profil publik best-effort.</p>
+        )}
         {compareMode && (
           <div className="w-full max-w-2xl mt-5 space-y-4">
             {!compareProfile && (
               <CompareSearchBox
                 platform={comparePlatform}
                 setPlatform={setComparePlatform}
+                platformOptions={platformOptions}
                 username={compareUsername}
                 setUsername={setCompareUsername}
                 loading={compareLoading}
@@ -1531,7 +1563,7 @@ export default function Analyser() {
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 size={32} className="text-violet-500 animate-spin mb-4" />
         <p className="text-sm text-gray-500">Mengumpulkan data @{username}...</p>
-        <p className="text-xs text-gray-300 mt-1">Scraping profil {platform === 'instagram' ? 'Instagram' : 'TikTok'}</p>
+        <p className="text-xs text-gray-300 mt-1">Scraping profil {platformLabel(platform)}</p>
       </div>
     );
   }
@@ -1584,6 +1616,7 @@ export default function Analyser() {
             <CompareSearchBox
               platform={comparePlatform}
               setPlatform={setComparePlatform}
+              platformOptions={platformOptions}
               username={compareUsername}
               setUsername={setCompareUsername}
               loading={compareLoading}
@@ -1650,7 +1683,7 @@ export default function Analyser() {
                   {profile.is_verified && <BadgeCheck size={16} className="text-blue-500 flex-shrink-0" />}
                 </p>
                 <span className="text-[10px] font-semibold bg-violet-50 text-violet-600 px-2 py-0.5 rounded-full">{a.tier}</span>
-                <PlatformBadge platform={platform === 'instagram' ? 'Instagram' : 'TikTok'} size="xs" />
+                <PlatformBadge platform={platformLabel(platform)} size="xs" />
               </div>
               <p className="text-sm text-gray-400 truncate">@{profile.username}</p>
               {profile.biography && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{profile.biography}</p>}
