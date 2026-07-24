@@ -581,9 +581,10 @@ export default function ConnectedAccounts({ embedded = false }) {
     if (connectingPlatform) return;
 
     setConnectingPlatform(platform);
-    showToast(`Membuka login ${platform}...`, 'info');
+    showToast(`Mengalihkan ke login ${platform}...`, 'info');
     try {
       const result = await initiateOAuth(platform, wsId);
+      if (result.redirecting) return;
       if (result.cancelled) return;
       if (result.error === 'not_configured') {
         showToast(`${platform} API belum dikonfigurasi.`, 'error');

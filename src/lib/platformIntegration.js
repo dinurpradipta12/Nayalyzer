@@ -10,9 +10,7 @@ const FUNCTION_BASE = SUPABASE_ENABLED
   ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
   : null;
 
-let activeOAuthPopup = null;
-
-// ── OAuth popup flow ──────────────────────────────────────────
+// ── OAuth redirect flow ───────────────────────────────────────
 export async function initiateOAuth(platform, workspaceId) {
   if (!SUPABASE_ENABLED) {
     return { error: 'not_configured', fallback: 'manual_import' };
@@ -28,60 +26,9 @@ export async function initiateOAuth(platform, workspaceId) {
   if (data.error === 'not_configured') return { error: 'not_configured', message: data.message };
   if (data.error) return { error: data.error };
 
-  // Open popup
-  return new Promise((resolve) => {
-    let settled = false;
-    let timer = null;
-    let timeout = null;
-    let popup = null;
-
-    const finish = (result) => {
-      if (settled) return;
-      settled = true;
-      if (timer) window.clearInterval(timer);
-      if (timeout) window.clearTimeout(timeout);
-      window.removeEventListener('message', onMessage);
-      try {
-        if (popup && !popup.closed) popup.close();
-      } catch {}
-      resolve(result);
-    };
-
-    const onMessage = (event) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.source !== 'nayalyzer-oauth') return;
-      if (event.data.error) finish({ error: event.data.error });
-      else finish({ success: true, platform: event.data.connected || event.data.platform || platform });
-    };
-
-    try {
-      if (activeOAuthPopup && !activeOAuthPopup.closed) activeOAuthPopup.close();
-    } catch {}
-
-    popup = window.open(data.auth_url, `oauth_${platform}`, 'width=600,height=700,scrollbars=yes');
-    if (!popup) { resolve({ error: 'Popup diblokir browser. Izinkan popup untuk halaman ini.' }); return; }
-    activeOAuthPopup = popup;
-    popup.focus?.();
-    window.addEventListener('message', onMessage);
-
-    // Poll for popup close or URL change
-    timer = setInterval(() => {
-      try {
-        if (popup.closed) {
-          finish({ cancelled: true });
-        } else if (popup.location.origin === window.location.origin) {
-          const url = new URL(popup.location.href);
-          const connected = url.searchParams.get('connected');
-          const error     = url.searchParams.get('error');
-          if (connected) finish({ success: true, platform: connected });
-          else if (error) finish({ error });
-        }
-      } catch { /* cross-origin frame — still loading */ }
-    }, 500);
-
-    // Timeout after 5 minutes
-    timeout = setTimeout(() => finish({ error: 'timeout' }), 300000);
-  });
+  sessionStorage.setItem('naya_oauth_return_to', window.location.pathname + window.location.search);
+  window.location.assign(data.auth_url);
+  return { redirecting: true };
 }
 
 // ── Trigger sync ──────────────────────────────────────────────

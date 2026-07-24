@@ -14,9 +14,19 @@ export default function OAuthComplete() {
       error,
       platform,
     };
+    const next = new URLSearchParams();
+    if (connected) next.set('connected', connected);
+    if (error) next.set('error', error);
 
-    window.opener?.postMessage(payload, window.location.origin);
-    const timer = window.setTimeout(() => window.close(), 500);
+    if (window.opener) {
+      window.opener.postMessage(payload, window.location.origin);
+      const timer = window.setTimeout(() => window.close(), 500);
+      return () => window.clearTimeout(timer);
+    }
+
+    const timer = window.setTimeout(() => {
+      window.location.replace(`/connected-accounts${next.toString() ? `?${next}` : ''}`);
+    }, 700);
     return () => window.clearTimeout(timer);
   }, [connected, error, platform]);
 
@@ -38,7 +48,7 @@ export default function OAuthComplete() {
           {error ? 'Login gagal' : isSuccess ? `${platform} terhubung` : 'Menyelesaikan login'}
         </h1>
         <p className="mt-2 text-sm text-gray-400">
-          {error ? `OAuth error: ${error}` : 'Jendela ini akan tertutup otomatis.'}
+          {error ? `OAuth error: ${error}` : 'Kamu akan diarahkan kembali ke Connected Accounts.'}
         </p>
       </div>
     </div>
