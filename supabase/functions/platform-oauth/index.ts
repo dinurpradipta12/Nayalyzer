@@ -183,7 +183,7 @@ async function exchangeTikTokCode(code: string, redirectUri = CALLBACK_URI): Pro
 
 // ── Fetch platform user profile ───────────────────────────────
 async function fetchInstagramProfile(token: string) {
-  const res  = await fetch(`https://graph.instagram.com/v20.0/me?fields=id,username,name,biography,followers_count,media_count,profile_picture_url&access_token=${token}`);
+  const res  = await fetch(`https://graph.instagram.com/v20.0/me?fields=id,username,name,biography,followers_count,media_count,profile_picture_url,website&access_token=${token}`);
   return res.json();
 }
 
@@ -349,6 +349,9 @@ serve(async (req) => {
         account_name:       (profile.name || username) as string,
         followers_count:    (profile.followers_count || profile.follower_count || 0) as number,
         media_count:        (profile.media_count || profile.video_count || 0) as number,
+        profile_picture_url:(profile.profile_picture_url || profile.avatar_url || null) as string | null,
+        biography:          (profile.biography || null) as string | null,
+        website:            (profile.website || null) as string | null,
         connection_status:  'connected',
         updated_at:         new Date().toISOString(),
       }, { onConflict: 'workspace_id,platform,username' }).select('id').single();
@@ -450,6 +453,9 @@ serve(async (req) => {
         username, account_name: (profile.name || username) as string,
         followers_count: (profile.followers_count || 0) as number,
         media_count: (profile.media_count || 0) as number,
+        profile_picture_url: (profile.profile_picture_url || null) as string | null,
+        biography: (profile.biography || null) as string | null,
+        website: (profile.website || null) as string | null,
         connection_status: 'connected',
         updated_at: new Date().toISOString(),
       }, { onConflict: 'workspace_id,platform,username' }).select('id').single();

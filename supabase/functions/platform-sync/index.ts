@@ -495,6 +495,9 @@ serve(async (req) => {
             account_name:    p.profile?.name ?? p.username ?? undefined,
             following_count: p.following ?? undefined,
             media_count:     p.media_count ?? undefined,
+            profile_picture_url: p.profile?.profile_picture_url ?? undefined,
+            biography:       p.profile?.biography ?? undefined,
+            website:         p.profile?.website ?? undefined,
             updated_at:      new Date().toISOString(),
           }).eq('id', accountId);
         }
@@ -552,6 +555,7 @@ serve(async (req) => {
             followers_count: p.follower_count ?? 0,
             following_count: p.following_count ?? 0,
             media_count: p.video_count ?? 0,
+            profile_picture_url: p.avatar_url ?? undefined,
             updated_at: new Date().toISOString(),
           }).eq('id', accountId);
           if (p.display_name) {

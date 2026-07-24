@@ -35,6 +35,9 @@ function realDataDefaults(platform) {
     platform,
     username: '-',
     accountName: '-',
+    profilePictureUrl: null,
+    biography: '',
+    website: '',
     followers: 0,
     following: 0,
     followerGrowth: 0,
@@ -57,6 +60,12 @@ function realDataDefaults(platform) {
     demographics: null,
     aiInsight: 'Data akun sudah terhubung, tapi metrik historis/konten belum tersedia. Jalankan sync atau import data konten untuk mulai membaca performa.',
   };
+}
+
+function proxyImg(src) {
+  if (!src) return null;
+  if (!import.meta.env.VITE_SUPABASE_URL) return src;
+  return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/profile-analyzer?img=${encodeURIComponent(src)}`;
 }
 
 function getContentMetric(content) {
@@ -278,6 +287,8 @@ function MetricRow({ label, value, sub }) {
 function PlatformCard({ data }) {
   const color = PLATFORM_COLORS[data.platform];
   const contentCountLabel = data.contentCountLabel || 'Konten Terbit';
+  const avatarSrc = proxyImg(data.profilePictureUrl);
+  const initial = (data.accountName || data.username || data.platform || '?').replace('@', '').trim()[0]?.toUpperCase() || '?';
   const radarData = [
     { subject: 'Followers', A: Math.min((data.followers / 150000) * 100, 100) },
     { subject: 'Engagement', A: Math.min((data.engagementRate / 10) * 100, 100) },
@@ -290,11 +301,35 @@ function PlatformCard({ data }) {
     <div className="space-y-4">
       {/* Header */}
       <div className="bg-white rounded-2xl border border-purple-50 shadow-card p-5">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <PlatformBadge platform={data.platform} size="md" />
-            <p className="text-lg font-bold text-gray-800 mt-2">{data.username}</p>
-            <p className="text-sm text-gray-400">{data.accountName}</p>
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
+          <div className="flex items-start gap-4 min-w-0">
+            {avatarSrc ? (
+              <img
+                src={avatarSrc}
+                alt={data.username}
+                referrerPolicy="no-referrer"
+                className="w-16 h-16 rounded-2xl object-cover border border-purple-100 flex-shrink-0 bg-lavender-50"
+                onError={e => { e.currentTarget.style.display = 'none'; }}
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-400 text-white flex items-center justify-center font-bold text-xl flex-shrink-0">
+                {initial}
+              </div>
+            )}
+            <div className="min-w-0">
+              <PlatformBadge platform={data.platform} size="md" />
+              <p className="text-xl font-bold text-gray-800 mt-2 truncate">{data.username}</p>
+              <p className="text-sm text-gray-400 truncate">{data.accountName}</p>
+              {data.biography && (
+                <p className="text-xs text-gray-500 mt-2 leading-relaxed line-clamp-2 max-w-2xl">{data.biography}</p>
+              )}
+              {data.website && (
+                <a href={data.website.startsWith('http') ? data.website : `https://${data.website}`} target="_blank" rel="noreferrer"
+                  className="text-xs text-violet-500 font-semibold mt-1 inline-block truncate max-w-xs">
+                  {data.website}
+                </a>
+              )}
+            </div>
           </div>
           <div className="text-right">
             <p className="text-3xl font-bold text-gray-800">{data.followers.toLocaleString('id-ID')}</p>
@@ -508,6 +543,9 @@ export default function AccountAnalytics() {
       ...base,
       username:         real.username ? `@${real.username}` : (real.account_name ? `@${real.account_name}` : base.username),
       accountName:      real.account_name ?? base.accountName,
+      profilePictureUrl: real.profile_picture_url ?? real.avatar_url ?? base.profilePictureUrl,
+      biography:        real.biography ?? base.biography,
+      website:          real.website ?? base.website,
       followers:        real.followers_count ?? latestFollowers,
       following:        real.following_count ?? base.following,
       followerGrowth,
