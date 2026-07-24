@@ -59,6 +59,35 @@ function realDataDefaults(platform) {
   };
 }
 
+function getContentMetric(content) {
+  return content.content_metrics?.[0] ?? {};
+}
+
+function buildAudienceActivity(contents) {
+  const byHour = Object.fromEntries(EMPTY_ACTIVITY.map(row => [row.hour, 0]));
+
+  contents.forEach((content) => {
+    if (!content.published_at) return;
+    const hour = new Date(content.published_at).getHours().toString().padStart(2, '0');
+    const metric = getContentMetric(content);
+    const interactions = (metric.engagement_count ?? 0)
+      || (metric.likes ?? 0) + (metric.comments ?? 0) + (metric.shares ?? 0) + (metric.saves ?? 0);
+    const views = metric.views ?? metric.impressions ?? 0;
+    const score = interactions > 0 ? interactions : Math.ceil(views / 100);
+    byHour[hour] = (byHour[hour] ?? 0) + Math.max(score, 1);
+  });
+
+  const knownHours = new Set(EMPTY_ACTIVITY.map(row => row.hour));
+  const rows = [
+    ...EMPTY_ACTIVITY.map(row => ({ hour: row.hour, value: byHour[row.hour] ?? 0 })),
+    ...Object.entries(byHour)
+      .filter(([hour]) => !knownHours.has(hour))
+      .map(([hour, value]) => ({ hour, value })),
+  ];
+
+  return rows.sort((a, b) => Number(a.hour) - Number(b.hour));
+}
+
 const GENDER_COLORS = { F: '#EC4899', M: '#8B5CF6', U: '#9ca3af', female: '#EC4899', male: '#8B5CF6' };
 const GENDER_LABELS = { F: 'Perempuan', M: 'Laki-laki', U: 'Lainnya', female: 'Perempuan', male: 'Laki-laki' };
 
@@ -434,16 +463,16 @@ export default function AccountAnalytics() {
 
     // Avg content metrics
     const avgLikes = hasContent
-      ? Math.round(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.likes ?? 0), 0) / platformContents.length)
+      ? Math.round(platformContents.reduce((s, c) => s + (getContentMetric(c).likes ?? 0), 0) / platformContents.length)
       : 0;
     const avgComments = hasContent
-      ? Math.round(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.comments ?? 0), 0) / platformContents.length)
+      ? Math.round(platformContents.reduce((s, c) => s + (getContentMetric(c).comments ?? 0), 0) / platformContents.length)
       : 0;
     const avgShares = hasContent
-      ? Math.round(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.shares ?? 0), 0) / platformContents.length)
+      ? Math.round(platformContents.reduce((s, c) => s + (getContentMetric(c).shares ?? 0), 0) / platformContents.length)
       : 0;
     const avgSaves = hasContent
-      ? Math.round(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.saves ?? 0), 0) / platformContents.length)
+      ? Math.round(platformContents.reduce((s, c) => s + (getContentMetric(c).saves ?? 0), 0) / platformContents.length)
       : 0;
 
     // Account-level metrics from account_metrics table (last 30 days sum)
@@ -451,13 +480,13 @@ export default function AccountAnalytics() {
     const totalReach = acctMetrics.reduce((s, r) => s + (r.reach ?? 0), 0);
     const totalImpressions = acctMetrics.reduce((s, r) => s + (r.impressions ?? 0), 0);
     // Fallback: sum video views from content_metrics when account-level impressions unavailable
-    const totalContentViews = platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.views ?? 0), 0);
+    const totalContentViews = platformContents.reduce((s, c) => s + (getContentMetric(c).views ?? 0), 0);
     const hasAcctMetrics = acctMetrics.length > 0;
 
     // Total interactions (for Threads): from account_metrics or sum likes+comments+shares
     const acctTotalInteractions = acctMetrics.reduce((s, r) => s + (r.total_interactions ?? 0), 0);
     const contentTotalInteractions = platformContents.reduce((s, c) => {
-      const m = c.content_metrics?.[0] ?? {};
+      const m = getContentMetric(c);
       return s + (m.likes ?? 0) + (m.comments ?? 0) + (m.shares ?? 0);
     }, 0);
     const totalInteractions = acctTotalInteractions > 0 ? acctTotalInteractions : contentTotalInteractions;
@@ -465,7 +494,7 @@ export default function AccountAnalytics() {
     // ER from real account/content metrics only
     const acctErValues = acctMetrics.map(r => r.engagement_rate).filter(v => v != null);
     const engagementRate = hasContent
-      ? +(platformContents.reduce((s, c) => s + (c.content_metrics?.[0]?.engagement_rate ?? 0), 0) / platformContents.length).toFixed(1)
+      ? +(platformContents.reduce((s, c) => s + (getContentMetric(c).engagement_rate ?? 0), 0) / platformContents.length).toFixed(1)
       : (acctErValues.length ? +(acctErValues.reduce((a, b) => a + b, 0) / acctErValues.length).toFixed(1) : 0);
 
     const sortedMetrics = [...acctMetrics].sort((a, b) => a.metric_date?.localeCompare(b.metric_date));
@@ -473,6 +502,7 @@ export default function AccountAnalytics() {
     const latestFollowers = sortedMetrics.at(-1)?.followers ?? real.followers_count ?? 0;
     const followerGrowth = firstFollowers > 0 ? latestFollowers - firstFollowers : 0;
     const followerGrowthPercent = firstFollowers > 0 ? +((followerGrowth / firstFollowers) * 100).toFixed(2) : 0;
+    const totalContentCount = real.media_count > 0 ? real.media_count : platformContents.length;
 
     return {
       ...base,
@@ -482,8 +512,8 @@ export default function AccountAnalytics() {
       following:        real.following_count ?? base.following,
       followerGrowth,
       followerGrowthPercent,
-      contentPublished: Number.isFinite(real.media_count) ? real.media_count : 0,
-      contentCountLabel: 'Total Konten',
+      contentPublished: totalContentCount,
+      contentCountLabel: real.media_count > 0 ? 'Total Konten' : 'Konten Tersync',
       avgLikes,
       avgComments,
       avgShares,
@@ -492,6 +522,7 @@ export default function AccountAnalytics() {
       impressions:      totalImpressions > 0 ? totalImpressions : totalContentViews,
       engagementRate,
       totalInteractions,
+      audienceActivity: hasContent ? buildAudienceActivity(platformContents) : base.audienceActivity,
       demographics:     real.demographics ?? null,
     };
   }, [activeTab, accounts, contents, metrics, demo]);
