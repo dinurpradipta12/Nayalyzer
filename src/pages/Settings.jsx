@@ -6,12 +6,14 @@ import {
   Eye,
   EyeOff,
   Key,
+  Star,
+  Upload,
   Save,
   Settings as SettingsIcon,
   Sparkles,
   Wifi,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { PLATFORM_NAMES, usePlatformVisibility } from '../lib/platformVisibility';
 import ConnectedAccounts from './ConnectedAccounts';
@@ -44,15 +46,39 @@ function SecretLine({ children }) {
 }
 
 export default function Settings() {
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, workspaces, switchWorkspace, updateWorkspace } = useWorkspace();
   const workspaceId = activeWorkspace?.id;
   const { hiddenPlatforms, loading: platformLoading, setPlatformHidden } = usePlatformVisibility(workspaceId);
 
+  const [workspaceForm, setWorkspaceForm] = useState({
+    name: '',
+    brand_name: '',
+    industry: '',
+    timezone: 'Asia/Jakarta',
+    logo_url: '',
+  });
+  const [defaultWorkspaceId, setDefaultWorkspaceId] = useState(() => localStorage.getItem('naya_active_workspace_id') || '');
+  const [savingWorkspace, setSavingWorkspace] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [workspaceStatus, setWorkspaceStatus] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
   const [keyStatus, setKeyStatus] = useState('');
   const [keyLoaded, setKeyLoaded] = useState(false);
+
+  useEffect(() => {
+    setWorkspaceForm({
+      name: activeWorkspace?.name || '',
+      brand_name: activeWorkspace?.brand_name || '',
+      industry: activeWorkspace?.industry || '',
+      timezone: activeWorkspace?.timezone || 'Asia/Jakarta',
+      logo_url: activeWorkspace?.logo_url || '',
+    });
+    if (activeWorkspace?.id) {
+      setDefaultWorkspaceId(localStorage.getItem('naya_active_workspace_id') || activeWorkspace.id);
+    }
+  }, [activeWorkspace]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -91,6 +117,84 @@ export default function Settings() {
     saveApiKey('');
   };
 
+  const setWorkspaceField = (field, value) => {
+    setWorkspaceForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const saveWorkspaceInfo = async () => {
+    if (!workspaceId) return;
+
+    const name = workspaceForm.name.trim();
+    if (!name) {
+      setWorkspaceStatus('name_required');
+      return;
+    }
+
+    setSavingWorkspace(true);
+    setWorkspaceStatus('');
+    const { error } = await updateWorkspace({
+      name,
+      brand_name: workspaceForm.brand_name.trim() || null,
+      industry: workspaceForm.industry.trim() || null,
+      timezone: workspaceForm.timezone || 'Asia/Jakarta',
+      logo_url: workspaceForm.logo_url || null,
+      updated_at: new Date().toISOString(),
+    });
+    setSavingWorkspace(false);
+    setWorkspaceStatus(error ? 'error' : 'saved');
+    setTimeout(() => setWorkspaceStatus(''), 3000);
+  };
+
+  const uploadWorkspaceLogo = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !workspaceId) return;
+
+    if (!file.type.startsWith('image/')) {
+      setWorkspaceStatus('invalid_logo');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setWorkspaceStatus('logo_too_large');
+      return;
+    }
+
+    setUploadingLogo(true);
+    setWorkspaceStatus('');
+
+    try {
+      if (SUPABASE_ENABLED) {
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+        const path = `${workspaceId}/workspace-icon-${Date.now()}.${ext}`;
+        const { error } = await supabase.storage
+          .from('workspace-assets')
+          .upload(path, file, { contentType: file.type, upsert: true });
+        if (error) throw error;
+        const { data } = supabase.storage.from('workspace-assets').getPublicUrl(path);
+        setWorkspaceField('logo_url', data.publicUrl);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => setWorkspaceField('logo_url', reader.result);
+        reader.readAsDataURL(file);
+      }
+    } catch (error) {
+      console.warn('workspace logo upload:', error.message);
+      setWorkspaceStatus('upload_error');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const saveDefaultWorkspace = () => {
+    const selected = workspaces.find(w => w.id === defaultWorkspaceId);
+    if (!selected) return;
+    localStorage.setItem('naya_active_workspace_id', selected.id);
+    switchWorkspace(selected);
+    setWorkspaceStatus('default_saved');
+    setTimeout(() => setWorkspaceStatus(''), 3000);
+  };
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-5 items-start">
@@ -99,17 +203,153 @@ export default function Settings() {
             <SectionTitle
               icon={Building2}
               title="Workspace Info"
-              desc="Informasi workspace yang sedang dipakai."
+              desc="Kelola identitas workspace dan workspace utama."
             />
 
-            <div className="rounded-2xl border border-purple-50 bg-lavender-50 p-4">
-              <p className="text-xs font-semibold uppercase text-gray-400">Workspace</p>
-              <p className="mt-1 text-lg font-bold text-gray-800">
-                {activeWorkspace?.name || 'Workspace belum dipilih'}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Nama, member, dan akses workspace dikelola dari halaman Team Members.
-              </p>
+            <div className="space-y-5">
+              <div className="flex flex-col gap-4 rounded-2xl border border-purple-50 bg-lavender-50 p-4 sm:flex-row sm:items-center">
+                <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl bg-white shadow-sm">
+                  {workspaceForm.logo_url ? (
+                    <img
+                      src={workspaceForm.logo_url}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-100 to-purple-100 text-xl font-bold text-violet-600">
+                      {(workspaceForm.name || activeWorkspace?.name || 'W').trim().charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase text-gray-400">Icon Workspace</p>
+                  <p className="mt-1 truncate text-base font-bold text-gray-800">
+                    {workspaceForm.name || 'Workspace belum dipilih'}
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500">PNG/JPG maksimal 2 MB.</p>
+                </div>
+
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-violet-100 bg-white px-4 py-2 text-sm font-semibold text-violet-600 transition-colors hover:bg-violet-50">
+                  {uploadingLogo ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+                  ) : (
+                    <Upload size={15} />
+                  )}
+                  Upload
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={uploadingLogo || !workspaceId}
+                    onChange={uploadWorkspaceLogo}
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">Nama Workspace</label>
+                  <input
+                    value={workspaceForm.name}
+                    onChange={(event) => setWorkspaceField('name', event.target.value)}
+                    className="w-full rounded-xl border border-purple-100 px-4 py-2.5 text-sm text-gray-700 transition-all focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                    placeholder="Nama workspace"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">Nama Brand</label>
+                  <input
+                    value={workspaceForm.brand_name}
+                    onChange={(event) => setWorkspaceField('brand_name', event.target.value)}
+                    className="w-full rounded-xl border border-purple-100 px-4 py-2.5 text-sm text-gray-700 transition-all focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                    placeholder="Nama brand"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">Industri</label>
+                  <input
+                    value={workspaceForm.industry}
+                    onChange={(event) => setWorkspaceField('industry', event.target.value)}
+                    className="w-full rounded-xl border border-purple-100 px-4 py-2.5 text-sm text-gray-700 transition-all focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                    placeholder="Creative Agency"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-gray-600">Timezone</label>
+                  <select
+                    value={workspaceForm.timezone}
+                    onChange={(event) => setWorkspaceField('timezone', event.target.value)}
+                    className="w-full rounded-xl border border-purple-100 px-4 py-2.5 text-sm text-gray-700 transition-all focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                  >
+                    <option value="Asia/Jakarta">WIB - Asia/Jakarta</option>
+                    <option value="Asia/Makassar">WITA - Asia/Makassar</option>
+                    <option value="Asia/Jayapura">WIT - Asia/Jayapura</option>
+                    <option value="UTC">UTC</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-purple-50 bg-white p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <div className="min-w-0 flex-1">
+                    <label className="mb-1.5 block text-xs font-semibold text-gray-600">Workspace utama saat app dibuka</label>
+                    <select
+                      value={defaultWorkspaceId}
+                      onChange={(event) => setDefaultWorkspaceId(event.target.value)}
+                      className="w-full rounded-xl border border-purple-100 px-4 py-2.5 text-sm text-gray-700 transition-all focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                    >
+                      {workspaces.map((workspace) => (
+                        <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={saveDefaultWorkspace}
+                    disabled={!defaultWorkspaceId}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-100 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-600 transition-colors hover:bg-violet-100 disabled:opacity-60"
+                  >
+                    <Star size={14} />
+                    Jadikan Utama
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={saveWorkspaceInfo}
+                  disabled={savingWorkspace || !workspaceId}
+                  className="purple-btn flex items-center gap-2 px-5 py-2 text-sm disabled:opacity-60"
+                >
+                  {savingWorkspace ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  ) : (
+                    <Save size={13} />
+                  )}
+                  Simpan Workspace
+                </button>
+
+                {workspaceStatus === 'saved' && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-green-600">
+                    <Check size={12} /> Workspace tersimpan
+                  </span>
+                )}
+                {workspaceStatus === 'default_saved' && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-green-600">
+                    <Check size={12} /> Workspace utama aktif
+                  </span>
+                )}
+                {workspaceStatus === 'name_required' && <span className="text-xs text-red-500">Nama workspace wajib diisi.</span>}
+                {workspaceStatus === 'invalid_logo' && <span className="text-xs text-red-500">File harus berupa gambar.</span>}
+                {workspaceStatus === 'logo_too_large' && <span className="text-xs text-red-500">Ukuran icon maksimal 2 MB.</span>}
+                {workspaceStatus === 'upload_error' && <span className="text-xs text-red-500">Upload gagal. Pastikan bucket workspace-assets sudah aktif.</span>}
+                {workspaceStatus === 'error' && <span className="text-xs text-red-500">Gagal menyimpan workspace. Cek akses admin utama.</span>}
+              </div>
             </div>
           </Card>
 

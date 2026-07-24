@@ -13,6 +13,7 @@ const DEMO_WORKSPACE = {
   brand_name: 'Naya Creative',
   industry: 'Creative Agency',
   timezone: 'Asia/Jakarta',
+  logo_url: null,
   owner_id: 'demo',
   role: 'owner',
   permissions: normalizePermissions('owner'),
@@ -51,6 +52,15 @@ export function WorkspaceProvider({ children }) {
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
 
+  const persistWorkspaceCache = useCallback((list, active) => {
+    if (!user?.id) return;
+    localStorage.setItem(workspaceCacheKey(user.id), JSON.stringify({
+      version: WORKSPACE_CACHE_VERSION,
+      workspaces: list,
+      activeWorkspace: active,
+    }));
+  }, [user?.id]);
+
   // ── Load workspaces for current user ───────────────────
   const loadWorkspaces = useCallback(async () => {
     if (!isAuthenticated) {
@@ -80,11 +90,7 @@ export function WorkspaceProvider({ children }) {
         const saved = localStorage.getItem('naya_active_workspace_id');
         const found = normalizedList.find(w => w.id === saved) || normalizedList[0];
         setActiveWorkspace(found);
-        localStorage.setItem(cacheKey, JSON.stringify({
-          version: WORKSPACE_CACHE_VERSION,
-          workspaces: normalizedList,
-          activeWorkspace: found,
-        }));
+        persistWorkspaceCache(normalizedList, found);
       } else {
         setActiveWorkspace(null);
         localStorage.removeItem(cacheKey);
@@ -173,7 +179,7 @@ export function WorkspaceProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, persistWorkspaceCache, user?.id]);
 
   useEffect(() => { loadWorkspaces(); }, [loadWorkspaces]);
 
@@ -223,9 +229,14 @@ export function WorkspaceProvider({ children }) {
   };
 
   const updateWorkspace = async (updates) => {
+    if (!activeWorkspace?.id) return { error: { message: 'Workspace belum dipilih' } };
     if (!SUPABASE_ENABLED) {
-      setActiveWorkspace(w => ({ ...w, ...updates }));
-      return { data: updates };
+      const updated = { ...activeWorkspace, ...updates };
+      const nextList = workspaces.map(w => w.id === updated.id ? updated : w);
+      setActiveWorkspace(updated);
+      setWorkspaces(nextList);
+      persistWorkspaceCache(nextList, updated);
+      return { data: updated };
     }
     const { data, error } = await supabase
       .from('workspaces')
@@ -233,7 +244,18 @@ export function WorkspaceProvider({ children }) {
       .eq('id', activeWorkspace.id)
       .select()
       .single();
-    if (!error) setActiveWorkspace(data);
+    if (!error) {
+      const updated = {
+        ...activeWorkspace,
+        ...data,
+        role: activeWorkspace.role,
+        permissions: normalizePermissions(activeWorkspace.role, activeWorkspace.permissions),
+      };
+      const nextList = workspaces.map(w => w.id === updated.id ? updated : w);
+      setActiveWorkspace(updated);
+      setWorkspaces(nextList);
+      persistWorkspaceCache(nextList, updated);
+    }
     return { data, error };
   };
 

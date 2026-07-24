@@ -34,13 +34,26 @@ function WorkspaceSwitcher() {
 
   if (!activeWorkspace) return null;
 
+  const WorkspaceIcon = ({ workspace, size = 'md' }) => {
+    const sizeClass = size === 'sm' ? 'w-5 h-5 rounded' : 'w-6 h-6 rounded-md';
+    const textClass = size === 'sm' ? 'text-[10px]' : 'text-xs';
+
+    return (
+      <div className={`${sizeClass} overflow-hidden bg-gradient-to-br from-violet-300 to-purple-200 flex items-center justify-center text-violet-700 font-bold ${textClass} flex-shrink-0`}>
+        {workspace.logo_url ? (
+          <img src={workspace.logo_url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          workspace.name?.[0]?.toUpperCase()
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 px-3 py-2 bg-lavender-50 rounded-xl hover:bg-lavender-100 transition-colors max-w-[180px]">
-        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-violet-300 to-purple-200 flex items-center justify-center text-violet-700 font-bold text-xs flex-shrink-0">
-          {activeWorkspace.name?.[0]?.toUpperCase()}
-        </div>
+        <WorkspaceIcon workspace={activeWorkspace} />
         <span className="text-xs font-semibold text-gray-700 truncate hidden sm:block">{activeWorkspace.name}</span>
         <ChevronDown size={13} className={`text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -50,9 +63,7 @@ function WorkspaceSwitcher() {
             <button key={ws.id} onClick={() => { switchWorkspace(ws); setOpen(false); }}
               className={`w-full text-left px-3 py-2.5 text-xs font-medium transition-colors flex items-center gap-2
                 ${ws.id === activeWorkspace?.id ? 'bg-violet-50 text-violet-700' : 'text-gray-600 hover:bg-lavender-50'}`}>
-              <div className="w-5 h-5 rounded bg-gradient-to-br from-violet-200 to-purple-100 flex items-center justify-center text-violet-600 font-bold text-[10px]">
-                {ws.name?.[0]?.toUpperCase()}
-              </div>
+              <WorkspaceIcon workspace={ws} size="sm" />
               {ws.name}
             </button>
           ))}
