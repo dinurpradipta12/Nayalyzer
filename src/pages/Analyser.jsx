@@ -1235,14 +1235,24 @@ function BrandModePanel({ profile, platform, analytics }) {
         </div>
       </div>
 
-      <ChartCard title="Pertumbuhan Followers" subtitle="3 bulan terakhir">
+      <ChartCard title="Pertumbuhan Followers" subtitle="Jumlah followers, bukan persen · 3 bulan terakhir">
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={followerGrowth3Months} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmtNum} domain={['dataMin', 'dataMax']} />
-            <Tooltip formatter={value => value.toLocaleString('id-ID')} />
-            <Line type="monotone" dataKey="followers" name="Followers" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 3, fill: '#8B5CF6' }} />
+            <YAxis
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              axisLine={false}
+              tickLine={false}
+              allowDecimals={false}
+              tickFormatter={value => `${fmtNum(value)} followers`}
+              domain={[
+                dataMin => Math.max(0, Math.floor(dataMin - 1)),
+                dataMax => Math.ceil(dataMax + 1),
+              ]}
+            />
+            <Tooltip formatter={value => [`${fmtNum(value)} followers`, 'Jumlah followers']} />
+            <Line type="monotone" dataKey="followers" name="Jumlah followers" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 3, fill: '#8B5CF6' }} />
           </LineChart>
         </ResponsiveContainer>
       </ChartCard>
