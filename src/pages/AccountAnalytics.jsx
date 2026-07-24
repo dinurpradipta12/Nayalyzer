@@ -8,7 +8,7 @@ import ChartCard from '../components/ui/ChartCard';
 import PlatformBadge from '../components/ui/PlatformBadge';
 import { accountData } from '../data/mockData';
 import { useSocialData } from '../hooks/useSocialData';
-import { SUPABASE_ENABLED } from '../lib/supabase';
+import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { AnalyticsSkeleton } from '../components/ui/Skeleton';
 import { usePlatformVisibility } from '../lib/platformVisibility';
@@ -66,6 +66,25 @@ function proxyImg(src) {
   if (!src) return null;
   if (!import.meta.env.VITE_SUPABASE_URL) return src;
   return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/profile-analyzer?img=${encodeURIComponent(src)}`;
+}
+
+async function fetchPublicProfile(platform, username) {
+  if (!username || !import.meta.env.VITE_SUPABASE_URL) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/profile-analyzer`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session?.access_token}`,
+    },
+    body: JSON.stringify({
+      platform: platform.toLowerCase(),
+      username: username.replace('@', '').trim(),
+    }),
+  });
+  const json = await res.json();
+  if (!res.ok || json.error) throw new Error(json.error || 'Gagal mengambil profil publik');
+  return json;
 }
 
 function getContentMetric(content) {
@@ -467,6 +486,7 @@ function PlatformCard({ data }) {
 
 export default function AccountAnalytics() {
   const [activeTab, setActiveTab] = useState('Instagram');
+  const [profileFallbacks, setProfileFallbacks] = useState({});
   const { activeWorkspace } = useWorkspace();
   const { accounts, contents, metrics, syncing, loading, reload } = useSocialData(activeWorkspace?.id);
   const { visiblePlatforms } = usePlatformVisibility(activeWorkspace?.id);
@@ -490,6 +510,7 @@ export default function AccountAnalytics() {
 
     const platformKey = activeTab.toLowerCase();
     const base = demo ? mock : realDataDefaults(activeTab);
+    const fallbackProfile = profileFallbacks[`${real.id}:${platformKey}`] ?? null;
     const platformContents = contents.filter(c => {
       if (c.platform !== activeTab) return false;
       return c.social_account_id === real.id;
@@ -542,10 +563,10 @@ export default function AccountAnalytics() {
     return {
       ...base,
       username:         real.username ? `@${real.username}` : (real.account_name ? `@${real.account_name}` : base.username),
-      accountName:      real.account_name ?? base.accountName,
-      profilePictureUrl: real.profile_picture_url ?? real.avatar_url ?? base.profilePictureUrl,
-      biography:        real.biography ?? base.biography,
-      website:          real.website ?? base.website,
+      accountName:      real.account_name ?? fallbackProfile?.full_name ?? base.accountName,
+      profilePictureUrl: real.profile_picture_url ?? real.avatar_url ?? fallbackProfile?.profile_pic ?? base.profilePictureUrl,
+      biography:        real.biography ?? fallbackProfile?.biography ?? base.biography,
+      website:          real.website ?? fallbackProfile?.external_url ?? base.website,
       followers:        real.followers_count ?? latestFollowers,
       following:        real.following_count ?? base.following,
       followerGrowth,
@@ -563,7 +584,29 @@ export default function AccountAnalytics() {
       audienceActivity: hasContent ? buildAudienceActivity(platformContents) : base.audienceActivity,
       demographics:     real.demographics ?? null,
     };
-  }, [activeTab, accounts, contents, metrics, demo]);
+  }, [activeTab, accounts, contents, metrics, demo, profileFallbacks]);
+
+  useEffect(() => {
+    const platformKey = activeTab.toLowerCase();
+    const real = accounts[platformKey];
+    if (!real || demo || real.profile_picture_url || real.avatar_url) return;
+
+    const key = `${real.id}:${platformKey}`;
+    if (profileFallbacks[key]) return;
+    const username = real.username || real.account_name;
+    if (!username || username === '-') return;
+
+    let cancelled = false;
+    fetchPublicProfile(activeTab, username)
+      .then(profile => {
+        if (!cancelled && profile) {
+          setProfileFallbacks(prev => ({ ...prev, [key]: profile }));
+        }
+      })
+      .catch(err => console.warn('profile fallback:', err.message));
+
+    return () => { cancelled = true; };
+  }, [activeTab, accounts, demo, profileFallbacks]);
 
   if (loading) return <AnalyticsSkeleton />;
 
