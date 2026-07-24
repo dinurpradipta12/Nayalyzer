@@ -40,6 +40,85 @@ function seededRand(seed) {
   };
 }
 
+const INTEREST_TAXONOMY = [
+  ['Business & Careers', ['bisnis', 'business', 'karir', 'career', 'kerja', 'agency', 'agency', 'strategist', 'strategy', 'marketing', 'growth', 'sales', 'income', 'uang', 'juta', 'brand', 'branding', 'umkm', 'startup']],
+  ['Education & Learning', ['belajar', 'edukasi', 'education', 'tips', 'tutorial', 'kelas', 'course', 'materi', 'ilmu', 'workshop', 'mentor', 'mentoring', 'training', 'coach', 'insight']],
+  ['Social Media & Content', ['sosmed', 'socmed', 'social media', 'content', 'konten', 'creator', 'kreator', 'instagram', 'tiktok', 'threads', 'reels', 'caption', 'hook', 'viral']],
+  ['Friends, Family & Relationships', ['keluarga', 'family', 'teman', 'friend', 'relationship', 'love', 'pasangan', 'anak']],
+  ['Clothes, Shoes & Accessories', ['fashion', 'outfit', 'style', 'ootd', 'clothes', 'shoes', 'sepatu', 'aksesoris', 'accessories']],
+  ['Travel, Tourism & Aviation', ['travel', 'trip', 'bali', 'jalan', 'liburan', 'wisata', 'tourism', 'hotel', 'flight', 'aviation']],
+  ['Restaurants, Food & Grocery', ['food', 'makan', 'kuliner', 'cafe', 'kafe', 'resto', 'kopi', 'coffee', 'latte', 'espresso', 'minuman', 'grocery']],
+  ['Beauty & Cosmetics', ['beauty', 'skincare', 'makeup', 'cosmetic', 'kosmetik', 'serum', 'skin']],
+  ['Finance & Investment', ['finance', 'finansial', 'investasi', 'saham', 'crypto', 'budget', 'saving', 'tabungan']],
+  ['Health & Wellness', ['health', 'sehat', 'fitness', 'gym', 'wellness', 'diet', 'workout', 'mental health']],
+];
+
+function countKeywordHits(text, keyword) {
+  if (!text || !keyword) return 0;
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = keyword.includes(' ')
+    ? new RegExp(escaped, 'gi')
+    : new RegExp(`(^|[^\\p{L}\\d_])${escaped}([^\\p{L}\\d_]|$)`, 'giu');
+  return text.match(pattern)?.length ?? 0;
+}
+
+function buildInterestSignals(profile, posts) {
+  const platform = String(profile.platform || '').toLowerCase();
+  const captions = posts.map(p => [p.title, p.caption, p.text, p.description].filter(Boolean).join(' ')).join(' ');
+  const hashtags = posts
+    .flatMap(p => [
+      ...(p.caption?.match(/#[\p{L}\d_]+/gu) ?? []),
+      ...(Array.isArray(p.hashtags) ? p.hashtags : []),
+    ])
+    .join(' ')
+    .replace(/#/g, ' ');
+
+  const publicProfileText = [
+    profile.username,
+    profile.full_name,
+    profile.biography,
+    profile.category_name,
+    profile.external_url,
+  ].filter(Boolean).join(' ');
+
+  const sources = platform === 'threads'
+    ? [
+        { text: captions, weight: 4 },
+        { text: hashtags, weight: 3 },
+        { text: publicProfileText, weight: 1.5 },
+      ]
+    : platform === 'instagram'
+      ? [
+          { text: captions, weight: 3 },
+          { text: hashtags, weight: 4 },
+          { text: profile.biography || '', weight: 2 },
+          { text: `${profile.username || ''} ${profile.full_name || ''}`, weight: 1 },
+        ]
+      : [
+          { text: captions, weight: 3 },
+          { text: publicProfileText, weight: 1.5 },
+        ];
+
+  const interests = INTEREST_TAXONOMY
+    .map(([label, keywords]) => {
+      const rawHits = sources.reduce((sum, source) => {
+        const text = String(source.text || '').toLowerCase();
+        const hits = keywords.reduce((count, keyword) => count + countKeywordHits(text, keyword), 0);
+        return sum + hits * source.weight;
+      }, 0);
+      return { label, score: Math.round(rawHits) };
+    })
+    .filter(it => it.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+
+  const total = interests.reduce((sum, it) => sum + it.score, 0);
+  return interests.map(it => ({
+    ...it,
+    pct: total > 0 ? +((it.score / total) * 100).toFixed(1) : 0,
+  }));
+}
+
 // ── Derive analisa lanjutan dari data dasar scraping ──────────
 function deriveAnalytics(profile) {
   const rnd = seededRand(profile.username + profile.platform);
@@ -161,30 +240,7 @@ function deriveAnalytics(profile) {
   const topHashtags = Object.entries(hashtags).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([t]) => t);
   const topMentions = Object.entries(mentions).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([t]) => t);
 
-  // Interests (estimasi dari bio + caption keyword sederhana)
-  const text = `${profile.username || ''} ${profile.full_name || ''} ${profile.biography || ''} ${posts.map(p => p.caption || '').join(' ')}`.toLowerCase();
-  const interestMap = [
-    ['Friends, Family & Relationships', ['keluarga', 'family', 'teman', 'friend', 'love']],
-    ['Business & Careers',              ['bisnis', 'business', 'karir', 'career', 'kerja', 'uang', 'income', 'juta']],
-    ['Clothes, Shoes & Accessories',    ['fashion', 'outfit', 'style', 'ootd']],
-    ['Travel, Tourism & Aviation',      ['travel', 'trip', 'bali', 'jalan', 'liburan', 'wisata']],
-    ['Restaurants, Food & Grocery',     ['food', 'makan', 'kuliner', 'cafe', 'kafe', 'resto', 'kopi', 'coffee', 'latte', 'espresso', 'minuman']],
-    ['Beauty & Cosmetics',              ['beauty', 'skincare', 'makeup']],
-    ['Education & Learning',            ['belajar', 'edukasi', 'tips', 'kelas', 'materi', 'ilmu']],
-  ];
-  const interests = interestMap
-    .map(([label, kws]) => {
-      const hits = kws.reduce((s, kw) => s + (text.split(kw).length - 1), 0);
-      return { label, score: hits };
-    })
-    .filter(it => it.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 4);
-  const interestTotal = interests.reduce((sum, it) => sum + it.score, 0);
-  const scoredInterests = interests.map(it => ({
-    ...it,
-    pct: interestTotal > 0 ? +((it.score / interestTotal) * 100).toFixed(1) : 0,
-  }));
+  const scoredInterests = buildInterestSignals(profile, posts);
 
   const totalEngagement = posts.reduce((s, p) => s + (p.likes ?? 0) + (p.comments ?? 0), 0);
   const totalLikes = posts.reduce((s, p) => s + (p.likes ?? 0), 0);
@@ -326,7 +382,7 @@ function clampScore(value) {
   return Math.max(0, Math.min(100, Math.round(safeNumber(value))));
 }
 
-function countKeywordHits(text, keys) {
+function countKeywordListHits(text, keys) {
   return keys.reduce((sum, key) => sum + (text.split(key).length - 1), 0);
 }
 
@@ -386,7 +442,7 @@ function deriveBrandAnalysis(profile, analytics) {
   const nicheScores = nicheRules
     .map(rule => ({
       ...rule,
-      hits: countKeywordHits(text, rule.keys),
+      hits: countKeywordListHits(text, rule.keys),
     }))
     .sort((a, b) => b.hits - a.hits);
   const primaryNiche = nicheScores[0]?.hits > 0
@@ -1815,14 +1871,23 @@ export default function Analyser() {
 
       {/* Interests */}
       <div className="grid grid-cols-1 gap-4">
-        <ChartCard title="Top Interests" subtitle="Topik terdeteksi dari bio dan caption">
+        <ChartCard
+          title="Top Interests"
+          subtitle={profile.platform === 'threads'
+            ? 'Dari postingan Threads dan sinyal profil publik'
+            : 'Dari bio, caption, hashtag, dan postingan'}
+        >
           <div className="space-y-3 mt-2">
-            {a.interests.length === 0 && <p className="text-xs text-gray-400 text-center py-6">Belum ada keyword minat yang terdeteksi dari bio/caption.</p>}
+            {a.interests.length === 0 && (
+              <p className="text-xs text-gray-400 text-center py-6">
+                Belum ada topik dominan yang terbaca dari data publik profil ini.
+              </p>
+            )}
             {a.interests.map(it => (
               <div key={it.label}>
                 <div className="flex items-center justify-between text-xs mb-1">
                   <span className="text-gray-700 font-medium">{it.label}</span>
-                  <span className="text-gray-500 font-semibold">{it.score} keyword</span>
+                  <span className="text-gray-500 font-semibold">{it.score} sinyal</span>
                 </div>
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div className="h-full bg-gradient-to-r from-violet-500 to-purple-400 rounded-full" style={{ width: `${it.pct}%` }} />
