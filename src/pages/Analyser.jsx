@@ -963,7 +963,7 @@ function ProfileAnalysisColumn({ profile, platform, sourceLabel, onClose }) {
         <ChartCard title="Profile Growth" subtitle="Last 6 months">
           <ResponsiveContainer width="100%" height={190}>
             <LineChart data={a.growth} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmtNum} domain={['dataMin', 'dataMax']} />
               <Tooltip formatter={v => v.toLocaleString('id-ID')} />
@@ -1127,7 +1127,7 @@ function InfluencerModePanel({ profile, platform, analytics }) {
         <ChartCard title="7 Video Views terakhir" subtitle="Basis estimasi total views dan avg views">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={rate.viewSeries.map((views, index) => ({ label: `V${index + 1}`, views }))}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmtNum} />
               <Tooltip formatter={value => value.toLocaleString('id-ID')} />
@@ -1859,7 +1859,7 @@ export default function Analyser() {
         <ChartCard title="Profile Growth - Last 6 Months" subtitle="Estimasi pertumbuhan followers">
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={a.growth} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={fmtNum} domain={['dataMin', 'dataMax']} />
               <Tooltip formatter={v => v.toLocaleString('id-ID')} />

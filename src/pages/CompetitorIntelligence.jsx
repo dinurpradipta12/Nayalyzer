@@ -21,13 +21,13 @@ const TABS = [
 ];
 
 const PLATFORM_COLORS = {
-  Instagram: 'from-pink-500 to-orange-400',
+  Instagram: 'from-violet-500 to-orange-400',
   TikTok:    'from-gray-800 to-gray-600',
   Threads:   'from-gray-900 to-gray-700',
 };
 
 const CONTENT_TYPE_COLORS = {
-  Reels: 'bg-pink-100 text-pink-700', 'Short Video': 'bg-red-100 text-red-700',
+  Reels: 'bg-violet-100 text-violet-700', 'Short Video': 'bg-red-100 text-red-700',
   Carousel: 'bg-violet-100 text-violet-700', Photo: 'bg-blue-100 text-blue-700',
   'Thread Opini': 'bg-gray-100 text-gray-700', Poll: 'bg-amber-100 text-amber-700',
   'Thread Tips': 'bg-emerald-100 text-emerald-700', 'Long Video': 'bg-orange-100 text-orange-700',

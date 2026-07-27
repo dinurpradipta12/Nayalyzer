@@ -113,20 +113,20 @@ const PLATFORM_METRICS = {
   instagram: [
     { key: 'views',              label: 'Total Views',  icon: Eye,          color: '#187877', src: 'content' },
     { key: 'reach',              label: 'Reach',        icon: TrendingUp,   color: '#6366F1', src: 'account' },
-    { key: 'total_interactions', label: 'Interactions', icon: Heart,        color: '#EC4899', src: 'content' },
+    { key: 'total_interactions', label: 'Interactions', icon: Heart,        color: '#187877', src: 'content' },
     { key: 'followers',          label: 'Follows',      icon: UserCheck,    color: '#10B981', src: 'account' },
     { key: 'avg_er',             label: 'Rata-rata ER', icon: BarChart2,    color: '#F59E0B', src: 'content', isAvg: true },
   ],
   threads: [
     { key: 'views',    label: 'Views',   icon: Eye,          color: '#187877', src: 'content' },
-    { key: 'likes',    label: 'Likes',   icon: Heart,        color: '#EC4899', src: 'content' },
+    { key: 'likes',    label: 'Likes',   icon: Heart,        color: '#187877', src: 'content' },
     { key: 'replies',  label: 'Replies', icon: Users,        color: '#06B6D4', src: 'content' },
     { key: 'reposts',  label: 'Reposts', icon: RefreshCw,    color: '#10B981', src: 'content' },
     { key: 'quotes',   label: 'Quotes',  icon: BarChart2,    color: '#F59E0B', src: 'content' },
   ],
   tiktok: [
     { key: 'views',    label: 'Views',    icon: Eye,          color: '#187877', src: 'content' },
-    { key: 'likes',    label: 'Likes',    icon: Heart,        color: '#EC4899', src: 'content' },
+    { key: 'likes',    label: 'Likes',    icon: Heart,        color: '#187877', src: 'content' },
     { key: 'comments', label: 'Comments', icon: Users,        color: '#06B6D4', src: 'content' },
     { key: 'shares',   label: 'Shares',   icon: MousePointer, color: '#10B981', src: 'content' },
     { key: 'saves',    label: 'Saves',    icon: BarChart2,    color: '#F59E0B', src: 'content' },
@@ -433,7 +433,7 @@ function InsightTab({ metrics, contents, syncing, reload }) {
                   <stop offset="95%" stopColor={activeM?.color ?? '#187877'} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 9, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v} />
               <Tooltip content={({ active, payload, label }) => active && payload?.length ? (
@@ -802,7 +802,7 @@ export default function ContentPerformance() {
         <ChartCard title="Avg. Engagement Rate per Format" subtitle="Format mana yang paling efektif">
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={erByFormat} margin={{ top: 0, right: 5, bottom: 0, left: -15 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" vertical={false} />
               <XAxis dataKey="format" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
               <Tooltip

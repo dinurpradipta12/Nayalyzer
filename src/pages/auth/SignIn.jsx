@@ -32,7 +32,7 @@ export default function SignIn() {
   return (
     <div className="min-h-screen flex">
       {/* Left gradient panel */}
-      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-gradient-to-br from-violet-600 via-purple-500 to-fuchsia-400 p-12 relative overflow-hidden">
+      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-gradient-to-br from-violet-600 via-purple-500 to-purple-900 p-12 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32" />
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/10 rounded-full translate-y-40 -translate-x-40" />
         <div className="relative z-10">

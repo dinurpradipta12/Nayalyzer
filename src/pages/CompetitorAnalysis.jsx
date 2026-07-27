@@ -9,7 +9,7 @@ import ChartCard from '../components/ui/ChartCard';
 import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 
-const LINE_COLORS = ['#187877', '#E040FB', '#26C6DA', '#F59E0B', '#78909C'];
+const LINE_COLORS = ['#187877', '#187877', '#26C6DA', '#F59E0B', '#78909C'];
 
 const fmt = (n) => n >= 1000000 ? `${(n/1000000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n ?? 0);
 
@@ -151,7 +151,7 @@ function ProfileDetail({ profile: initialProfile, workspaceId, onBack, onAdded, 
         <div className="grid grid-cols-2 gap-2">
           {[
             { icon: Users,     label: 'Followers',      value: fmt(profile.followers_count), color: 'text-violet-600' },
-            { icon: BarChart2, label: 'Eng. Rate',      value: `${profile.engagement_rate}%`, color: 'text-pink-500' },
+            { icon: BarChart2, label: 'Eng. Rate',      value: `${profile.engagement_rate}%`, color: 'text-violet-500' },
             { icon: Calendar,  label: 'Post/Minggu',    value: `${profile.posting_freq_weekly}×`, color: 'text-cyan-500' },
             { icon: Search,    label: 'Total Postingan',value: fmt(profile.media_count),      color: 'text-amber-500' },
           ].map(({ icon: Icon, label, value, color }) => (
@@ -232,7 +232,7 @@ function ProfileDetail({ profile: initialProfile, workspaceId, onBack, onAdded, 
 const PLATFORMS = ['Instagram', 'TikTok', 'Threads'];
 
 const PLATFORM_COLORS = {
-  Instagram: 'from-pink-500 to-rose-400',
+  Instagram: 'from-violet-500 to-rose-400',
   TikTok:    'from-gray-800 to-gray-600',
   Threads:   'from-gray-600 to-gray-400',
 };
@@ -541,7 +541,7 @@ function SearchModal({ workspaceId, onClose, onAdded }) {
                     <p className="text-xs text-violet-400">@{suggestion.username}</p>
                     <div className="flex items-center gap-3 mt-0.5">
                       <span className="text-[11px] text-gray-500">{fmt(suggestion.followers_count)} followers</span>
-                      <span className="text-[11px] text-pink-500">{suggestion.engagement_rate}% ER</span>
+                      <span className="text-[11px] text-violet-500">{suggestion.engagement_rate}% ER</span>
                     </div>
                   </div>
                   <span className="flex-shrink-0 text-xs text-violet-500 font-medium bg-violet-50 px-2.5 py-1 rounded-lg">Lihat →</span>
@@ -749,7 +749,7 @@ export default function CompetitorAnalysis() {
             <ChartCard title="Engagement Rate Kompetitor" subtitle="Perbandingan ER dari data terbaru">
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={erCompare} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
                   <Tooltip

@@ -3,7 +3,7 @@ import tiktokIcon from '../../assets/tik-tok.png';
 import threadsIcon from '../../assets/threads.png';
 
 const styles = {
-  Instagram: 'bg-pink-50 text-pink-600 border-pink-100',
+  Instagram: 'bg-violet-50 text-violet-600 border-violet-100',
   TikTok:    'bg-gray-100 text-gray-800 border-gray-200',
   Threads:   'bg-gray-100 text-gray-700 border-gray-200',
 };

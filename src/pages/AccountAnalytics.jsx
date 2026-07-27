@@ -13,7 +13,7 @@ import { useWorkspace } from '../context/WorkspaceContext';
 import { AnalyticsSkeleton } from '../components/ui/Skeleton';
 import { usePlatformVisibility } from '../lib/platformVisibility';
 
-const PLATFORM_COLORS = { Instagram: '#E040FB', TikTok: '#26C6DA', Threads: '#78909C' };
+const PLATFORM_COLORS = { Instagram: '#187877', TikTok: '#26C6DA', Threads: '#78909C' };
 
 const tabs = ['Instagram', 'TikTok', 'Threads'];
 
@@ -116,7 +116,7 @@ function buildAudienceActivity(contents) {
   return rows.sort((a, b) => Number(a.hour) - Number(b.hour));
 }
 
-const GENDER_COLORS = { F: '#EC4899', M: '#187877', U: '#9ca3af', female: '#EC4899', male: '#187877' };
+const GENDER_COLORS = { F: '#187877', M: '#187877', U: '#9ca3af', female: '#187877', male: '#187877' };
 const GENDER_LABELS = { F: 'Perempuan', M: 'Laki-laki', U: 'Lainnya', female: 'Perempuan', male: 'Laki-laki' };
 
 function GenderDonut({ total, genderData }) {
@@ -154,7 +154,7 @@ function GenderDonut({ total, genderData }) {
       });
     } else {
       ctx.beginPath(); ctx.arc(cx, cy, r, start, start + TAU * 0.45);
-      ctx.strokeStyle = '#EC4899'; ctx.lineWidth = sw; ctx.lineCap = 'round'; ctx.stroke();
+      ctx.strokeStyle = '#187877'; ctx.lineWidth = sw; ctx.lineCap = 'round'; ctx.stroke();
       ctx.beginPath(); ctx.arc(cx, cy, r, start + TAU * 0.45 + 0.06, start + TAU * 0.999);
       ctx.strokeStyle = '#187877'; ctx.lineWidth = sw; ctx.lineCap = 'round'; ctx.stroke();
     }
@@ -234,7 +234,7 @@ function DemographicsSection({ platform, followers, demographics }) {
                 <div className="h-1.5 bg-purple-50 rounded-full overflow-hidden">
                   <div className="h-full rounded-full" style={{
                     width: `${(a.pct / maxAge) * 100}%`,
-                    background: a.pct === maxAge ? 'linear-gradient(90deg,#187877,#c084fc)' : '#187877',
+                    background: a.pct === maxAge ? 'linear-gradient(90deg,#187877,#0B2A50)' : '#187877',
                   }} />
                 </div>
                 <span className={`text-[11px] tabular-nums text-right ${a.pct === maxAge ? 'font-bold text-violet-600' : 'font-medium text-gray-600'}`}>
@@ -396,7 +396,7 @@ function PlatformCard({ data }) {
         <ChartCard title="Aktivitas Audiens" subtitle="Jam aktif terbanyak (index)">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={data.audienceActivity} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" vertical={false} />
               <XAxis dataKey="hour" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}:00`} />
               <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <Tooltip

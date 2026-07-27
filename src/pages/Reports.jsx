@@ -23,8 +23,8 @@ const fmt = (n) =>
 
 const pct = (n) => `${(n ?? 0).toFixed(2)}%`;
 
-const PLATFORM_COLOR  = { Instagram: '#E040FB', TikTok: '#26C6DA', Threads: '#78909C' };
-const PLATFORM_BG     = { Instagram: 'from-pink-500 to-fuchsia-500', TikTok: 'from-cyan-400 to-teal-500', Threads: 'from-gray-500 to-gray-700' };
+const PLATFORM_COLOR  = { Instagram: '#187877', TikTok: '#26C6DA', Threads: '#78909C' };
+const PLATFORM_BG     = { Instagram: 'from-violet-500 to-purple-900', TikTok: 'from-cyan-400 to-teal-500', Threads: 'from-gray-500 to-gray-700' };
 
 const nowMonth = new Date().toLocaleString('id-ID', { month: 'long', year: 'numeric' });
 
@@ -272,7 +272,7 @@ export default function Reports() {
       ) : (
         <>
           {/* Hero summary */}
-          <div className="bg-gradient-to-br from-violet-600 via-purple-500 to-fuchsia-400 rounded-3xl p-6 text-white relative overflow-hidden">
+          <div className="bg-gradient-to-br from-violet-600 via-purple-500 to-purple-900 rounded-3xl p-6 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-20 translate-x-20" />
             <div className="absolute bottom-0 left-20 w-32 h-32 bg-white/10 rounded-full translate-y-12" />
             <div className="relative z-10">
@@ -347,7 +347,7 @@ export default function Reports() {
                   <div className="mt-3">
                     <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all"
-                        style={{ width: `${Math.min(100, (p.er / 10) * 100)}%`, background: PLATFORM_COLOR[p.label] ?? '#8b5cf6' }} />
+                        style={{ width: `${Math.min(100, (p.er / 10) * 100)}%`, background: PLATFORM_COLOR[p.label] ?? '#187877' }} />
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">ER vs target 10%</p>
                   </div>
@@ -366,8 +366,8 @@ export default function Reports() {
                     <AreaChart data={followerTrend}>
                       <defs>
                         <linearGradient id="igGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#E040FB" stopOpacity={0.2}/>
-                          <stop offset="95%" stopColor="#E040FB" stopOpacity={0}/>
+                          <stop offset="5%" stopColor="#187877" stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor="#187877" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
@@ -420,7 +420,7 @@ export default function Reports() {
                     <Tooltip />
                     <Bar dataKey="count" name="Konten" radius={[0, 4, 4, 0]}>
                       {contentByFormat.map((_, i) => (
-                        <Cell key={i} fill={['#8b5cf6','#ec4899','#06b6d4','#10b981','#f59e0b'][i % 5]} />
+                        <Cell key={i} fill={['#187877','#187877','#06b6d4','#10b981','#f59e0b'][i % 5]} />
                       ))}
                     </Bar>
                   </BarChart>

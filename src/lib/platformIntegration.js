@@ -107,10 +107,10 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ── Demo data ─────────────────────────────────────────────────
 export const PLATFORM_CONFIG = {
   Instagram: {
-    color:       'from-pink-500 to-orange-400',
-    bg:          'bg-pink-50',
-    border:      'border-pink-100',
-    textColor:   'text-pink-600',
+    color:       'from-violet-500 to-orange-400',
+    bg:          'bg-violet-50',
+    border:      'border-violet-100',
+    textColor:   'text-violet-600',
     icon:        'instagram',
     apiMode:     'oauth',
     scopesNeeded: ['instagram_business_basic','instagram_business_insights','instagram_business_content_publish'],

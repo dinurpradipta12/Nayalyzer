@@ -19,7 +19,7 @@ import threadsIcon from '../assets/threads.png';
 const PLATFORM_LOGOS = { Instagram: instagramIcon, TikTok: tiktokIcon, Threads: threadsIcon };
 // Aksen warna soft per platform untuk tema kartu
 const PLATFORM_ACCENT = {
-  Instagram: { ring: 'ring-pink-200', dot: 'bg-pink-500', soft: 'bg-pink-50', text: 'text-pink-600' },
+  Instagram: { ring: 'ring-violet-200', dot: 'bg-violet-500', soft: 'bg-violet-50', text: 'text-violet-600' },
   TikTok:    { ring: 'ring-gray-300', dot: 'bg-gray-800', soft: 'bg-gray-100', text: 'text-gray-800' },
   Threads:   { ring: 'ring-gray-300', dot: 'bg-gray-700', soft: 'bg-gray-100', text: 'text-gray-700' },
 };
@@ -27,7 +27,7 @@ const PLATFORM_ACCENT = {
 // ── API Guide Modal ───────────────────────────────────────────
 const API_GUIDES = {
   Instagram: {
-    color: 'from-pink-500 to-orange-400',
+    color: 'from-violet-500 to-orange-400',
     steps: [
       {
         title: 'Buat Meta Developer Account',

@@ -17,7 +17,7 @@ import { useWorkspace } from '../context/WorkspaceContext';
 import { DashboardSkeleton } from '../components/ui/Skeleton';
 import { usePlatformVisibility } from '../lib/platformVisibility';
 
-const COLORS  = { instagram: '#E040FB', tiktok: '#26C6DA', threads: '#9E9E9E' };
+const COLORS  = { instagram: '#187877', tiktok: '#26C6DA', threads: '#9E9E9E' };
 const PLABELS = { instagram: 'IG', tiktok: 'TT', threads: 'TH' };
 const PLATFORM_KEYS    = ['instagram', 'tiktok', 'threads'];
 const PLATFORM_LABELS  = ['Semua', 'Instagram', 'TikTok', 'Threads'];
@@ -411,7 +411,7 @@ export default function Dashboard() {
           iconColor="bg-violet-100 text-violet-600"
           breakdown={showBreakdown ? kpi.breakdowns.followers : null} />
         <StatCard title="Avg. Engagement Rate" value={kpi.avgER} icon={Activity}
-          iconColor="bg-pink-100 text-pink-500" suffix="%"
+          iconColor="bg-violet-100 text-violet-500" suffix="%"
           breakdown={showBreakdown ? kpi.breakdowns.er : null} />
         <StatCard title="Total Reach" value={kpi.totalReach} icon={Eye}
           iconColor="bg-blue-100 text-blue-500"
@@ -452,7 +452,7 @@ export default function Dashboard() {
                   </linearGradient>
                 ))}
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
                 tickFormatter={v => fmtNum(v)} />
@@ -480,7 +480,7 @@ export default function Dashboard() {
                     </linearGradient>
                   ))}
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
                   tickFormatter={v => `${v}%`} />
@@ -521,7 +521,7 @@ export default function Dashboard() {
                     </linearGradient>
                   ))}
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3e8ff" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#EAF5F4" />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
                   tickFormatter={v => fmtNum(v)} />

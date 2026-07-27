@@ -39,7 +39,7 @@ function GenerateModal({ onClose, onGenerate, generating, genResult }) {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-br from-violet-600 via-purple-500 to-fuchsia-400 p-6 text-white">
+        <div className="bg-gradient-to-br from-violet-600 via-purple-500 to-purple-900 p-6 text-white">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
@@ -374,7 +374,7 @@ export default function AIHypothesis() {
     <>
       <div className="space-y-5">
         {/* Hero */}
-        <div className="bg-gradient-to-br from-violet-600 via-purple-500 to-fuchsia-400 rounded-3xl p-6 text-white relative overflow-hidden">
+        <div className="bg-gradient-to-br from-violet-600 via-purple-500 to-purple-900 rounded-3xl p-6 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -translate-y-20 translate-x-20" />
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-12 -translate-x-12" />
           <div className="relative z-10">
