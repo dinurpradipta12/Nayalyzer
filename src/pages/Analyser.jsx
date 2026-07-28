@@ -127,14 +127,14 @@ function deriveAnalytics(profile) {
 
   const avgLikes = hasPosts
     ? Math.round(posts.reduce((s, p) => s + (p.likes ?? 0), 0) / posts.length)
-    : Math.round(profile.followers * (0.005 + rnd() * 0.03));
+    : 0;
   const avgComments = hasPosts
     ? Math.round(posts.reduce((s, p) => s + (p.comments ?? 0), 0) / posts.length)
-    : Math.round(avgLikes * (0.03 + rnd() * 0.1));
+    : 0;
   const videoPosts = posts.filter(p => p.is_video && p.views);
   const avgViews = videoPosts.length
     ? Math.round(videoPosts.reduce((s, p) => s + p.views, 0) / videoPosts.length)
-    : Math.round(profile.followers * (0.05 + rnd() * 0.25));
+    : 0;
   const vtr = profile.followers > 0 ? +((avgViews / profile.followers) * 100).toFixed(1) : 0;
 
   // ER: ambil 5–8 konten dengan engagement tertinggi,
@@ -147,8 +147,6 @@ function deriveAnalytics(profile) {
         .slice(0, Math.min(8, Math.max(5, posts.length)));
       const totalEng = topPosts.reduce((s, p) => s + (p.likes ?? 0) + (p.comments ?? 0), 0);
       er = +((totalEng / profile.followers) * 100).toFixed(2);
-    } else {
-      er = +(((avgLikes + avgComments) / profile.followers) * 100).toFixed(2);
     }
   }
 
@@ -653,6 +651,32 @@ async function fetchAnalyserProfile(platform, username) {
   return json;
 }
 
+function hasUsableScrapedData(profile) {
+  if (!profile) return false;
+  const posts = profile.recent_posts ?? [];
+  return (
+    profile.source === 'live' ||
+    posts.length > 0 ||
+    Number(profile.followers) > 0 ||
+    Number(profile.posts_count) > 0 ||
+    Boolean(profile.biography?.trim()) ||
+    Boolean(profile.profile_pic)
+  );
+}
+
+function validateAnalyserProfile(profile, platform, username) {
+  if (hasUsableScrapedData(profile)) return profile;
+  const platformName = platformLabel(platform);
+  const reason = profile?.warning ? ` (${profile.warning})` : '';
+  throw new Error(`Data publik ${platformName} untuk @${username.trim()} belum bisa dibaca${reason}. Coba cek username atau gunakan akun publik lain.`);
+}
+
+function sourceBadgeText(profile) {
+  if (profile?.source === 'live') return 'Data live scraping';
+  if (profile?.source === 'partial') return 'Data publik terbatas';
+  return 'Data tidak tersedia';
+}
+
 function CompareButton({ active, onClick }) {
   return (
     <button
@@ -896,7 +920,7 @@ function ProfileAnalysisColumn({ profile, platform, sourceLabel, onClose }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-purple-50 shadow-card p-5">
+      <div className="hidden bg-white rounded-2xl border border-purple-50 shadow-card p-5">
         <h4 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
           <span className="w-1 h-4 bg-gradient-to-b from-violet-500 to-purple-400 rounded-full" />
           Audience Demography
@@ -955,7 +979,7 @@ function ProfileAnalysisColumn({ profile, platform, sourceLabel, onClose }) {
         </div>
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+      <div className="hidden grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
         <ChartCard title="User Authenticity" subtitle="Estimasi komposisi followers">
           <AuthenticityChart data={a.authenticity} />
         </ChartCard>
@@ -1475,7 +1499,7 @@ export default function Analyser() {
     setError(null);
     setProfile(null);
     try {
-      const json = await fetchAnalyserProfile(platform, username);
+      const json = validateAnalyserProfile(await fetchAnalyserProfile(platform, username), platform, username);
       setProfile(json);
       const entry = { platform, username: username.trim(), profile: json, savedAt: Date.now() };
       try {
@@ -1494,7 +1518,7 @@ export default function Analyser() {
     setCompareLoading(true);
     setCompareError(null);
     try {
-      const json = await fetchAnalyserProfile(comparePlatform, compareUsername);
+      const json = validateAnalyserProfile(await fetchAnalyserProfile(comparePlatform, compareUsername), comparePlatform, compareUsername);
       setCompareProfile(json);
       const entry = { platform: comparePlatform, username: compareUsername.trim(), profile: json, savedAt: Date.now() };
       setHistory(pushHistory(entry));
@@ -1647,7 +1671,7 @@ export default function Analyser() {
           <ProfileAnalysisColumn
             profile={profile}
             platform={platform}
-            sourceLabel={`Hasil analisa · ${profile.source === 'live' ? 'Data live scraping' : 'Data estimasi'}`}
+            sourceLabel={`Hasil analisa · ${sourceBadgeText(profile)}`}
             onClose={closePrimaryProfile}
           />
         </div>
@@ -1694,7 +1718,7 @@ export default function Analyser() {
     <div className="space-y-4">
       {/* Reset bar */}
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-400">Hasil analisa · {profile.source === 'live' ? 'Data live scraping' : 'Data estimasi'}</p>
+        <p className="text-xs text-gray-400">Hasil analisa · {sourceBadgeText(profile)}</p>
         <div className="flex items-center gap-2">
           <HistoryDropdown history={history} onSelect={selectHistory}
             onDelete={deleteHistory} onClear={clearHistory} />
@@ -1785,7 +1809,7 @@ export default function Analyser() {
       </div>
 
       {/* Audience Demography */}
-      <div className="bg-white rounded-2xl border border-purple-50 shadow-card p-5">
+      <div className="hidden bg-white rounded-2xl border border-purple-50 shadow-card p-5">
         <h4 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
           <span className="w-1 h-4 bg-gradient-to-b from-violet-500 to-purple-400 rounded-full" />
           Audience Demography
@@ -1851,7 +1875,7 @@ export default function Analyser() {
       </div>
 
       {/* Authenticity + Growth */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="User Authenticity" subtitle="Estimasi komposisi followers">
           <AuthenticityChart data={a.authenticity} height={200} outerRadius={78} />
         </ChartCard>
