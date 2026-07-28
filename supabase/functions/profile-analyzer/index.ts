@@ -12,49 +12,120 @@ const UA =
 const MOBILE_UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 
-async function scrapeInstagram(username: string) {
-  const res = await fetch(
-    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
-    {
-      headers: {
-        'User-Agent': UA,
-        'x-ig-app-id': '936619743392459',
-        Accept: 'application/json',
-      },
-    },
-  );
-  if (!res.ok) throw new Error(`IG responded ${res.status}`);
-  const json = await res.json();
-  const u = json?.data?.user;
-  if (!u) throw new Error('profile not found');
-
-  const media = (u.edge_owner_to_timeline_media?.edges ?? []).map((e: { node: Record<string, unknown> }) => e.node);
-  const posts = media.map((n: Record<string, unknown>) => ({
-    id: n.id,
-    caption: ((n.edge_media_to_caption as Record<string, unknown>)?.edges as Array<{node:{text:string}}>)?.[0]?.node?.text ?? '',
-    thumbnail: n.display_url ?? n.thumbnail_src,
-    likes: (n.edge_liked_by as { count?: number })?.count ?? (n.edge_media_preview_like as { count?: number })?.count ?? 0,
-    comments: (n.edge_media_to_comment as { count?: number })?.count ?? 0,
-    views: (n.video_view_count as number) ?? null,
-    is_video: n.is_video ?? false,
-    taken_at: n.taken_at_timestamp,
-    url: `https://www.instagram.com/p/${n.shortcode}/`,
-  }));
-
+function emptyProfile(platform: string, username: string, reason = '') {
   return {
-    source: 'live',
-    platform: 'instagram',
-    username: u.username,
-    full_name: u.full_name,
-    biography: u.biography,
-    profile_pic: u.profile_pic_url_hd ?? u.profile_pic_url,
-    followers: u.edge_followed_by?.count ?? 0,
-    following: u.edge_follow?.count ?? 0,
-    posts_count: u.edge_owner_to_timeline_media?.count ?? 0,
-    is_verified: u.is_verified,
-    is_private: u.is_private,
-    external_url: u.external_url,
-    recent_posts: posts,
+    source: reason ? 'partial' : 'empty',
+    platform,
+    username,
+    full_name: username,
+    biography: '',
+    profile_pic: '',
+    followers: 0,
+    following: 0,
+    posts_count: 0,
+    is_verified: false,
+    is_private: false,
+    external_url: '',
+    recent_posts: [],
+    warning: reason,
+  };
+}
+
+async function scrapeInstagram(username: string) {
+  try {
+    const res = await fetch(
+      `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`,
+      {
+        headers: {
+          'User-Agent': UA,
+          'x-ig-app-id': '936619743392459',
+          Accept: 'application/json',
+        },
+      },
+    );
+    if (!res.ok) throw new Error(`IG responded ${res.status}`);
+    const json = await res.json();
+    const u = json?.data?.user;
+    if (!u) throw new Error('profile not found');
+
+    const media = (u.edge_owner_to_timeline_media?.edges ?? []).map((e: { node: Record<string, unknown> }) => e.node);
+    const posts = media.map((n: Record<string, unknown>) => ({
+      id: n.id,
+      caption: ((n.edge_media_to_caption as Record<string, unknown>)?.edges as Array<{node:{text:string}}>)?.[0]?.node?.text ?? '',
+      thumbnail: n.display_url ?? n.thumbnail_src,
+      likes: (n.edge_liked_by as { count?: number })?.count ?? (n.edge_media_preview_like as { count?: number })?.count ?? 0,
+      comments: (n.edge_media_to_comment as { count?: number })?.count ?? 0,
+      views: (n.video_view_count as number) ?? null,
+      is_video: n.is_video ?? false,
+      taken_at: n.taken_at_timestamp,
+      url: `https://www.instagram.com/p/${n.shortcode}/`,
+    }));
+
+    return {
+      source: 'live',
+      platform: 'instagram',
+      username: u.username,
+      full_name: u.full_name,
+      biography: u.biography,
+      profile_pic: u.profile_pic_url_hd ?? u.profile_pic_url,
+      followers: u.edge_followed_by?.count ?? 0,
+      following: u.edge_follow?.count ?? 0,
+      posts_count: u.edge_owner_to_timeline_media?.count ?? 0,
+      is_verified: u.is_verified,
+      is_private: u.is_private,
+      external_url: u.external_url,
+      recent_posts: posts,
+    };
+  } catch (apiError) {
+    return await scrapeInstagramHtml(username, apiError instanceof Error ? apiError.message : 'Instagram API unavailable');
+  }
+}
+
+async function scrapeInstagramHtml(username: string, apiReason = '') {
+  const res = await fetch(`https://www.instagram.com/${encodeURIComponent(username)}/`, {
+    headers: {
+      'User-Agent': UA,
+      Accept: 'text/html,application/xhtml+xml',
+    },
+  });
+  if (!res.ok) return emptyProfile('instagram', username, `Instagram fallback responded ${res.status}; ${apiReason}`.trim());
+  const html = await res.text();
+  const description = pickFirstMatch(html, [
+    /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i,
+    /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i,
+  ]);
+  const ogTitle = pickFirstMatch(html, [
+    /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i,
+  ]);
+  const profilePic = pickFirstMatch(html, [
+    /"profile_pic_url_hd"\s*:\s*"([^"]+)"/,
+    /"profile_pic_url"\s*:\s*"([^"]+)"/,
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+  ]);
+  const countsMatch = description.match(/([\d.,]+\s*[kKmM]?)\s+Followers?,\s+([\d.,]+\s*[kKmM]?)\s+Following,\s+([\d.,]+\s*[kKmM]?)\s+Posts?/i);
+  const titleName = ogTitle
+    .replace(/\(@[^)]+\).*$/i, '')
+    .replace(/•\s*Instagram.*$/i, '')
+    .replace(/\s*on Instagram.*$/i, '')
+    .trim();
+  const bio = description
+    .replace(/^.*?Posts?\s*-\s*/i, '')
+    .replace(/\s*See Instagram photos and videos.*$/i, '')
+    .trim();
+
+  const fallback = emptyProfile('instagram', username, apiReason || 'Instagram API unavailable');
+  return {
+    ...fallback,
+    source: countsMatch || titleName || bio || profilePic ? 'partial' : 'partial',
+    full_name: titleName || username,
+    biography: bio || '',
+    profile_pic: profilePic,
+    followers: countsMatch ? parseCompactCount(countsMatch[1]) : 0,
+    following: countsMatch ? parseCompactCount(countsMatch[2]) : 0,
+    posts_count: countsMatch ? parseCompactCount(countsMatch[3]) : 0,
   };
 }
 
@@ -62,16 +133,16 @@ async function scrapeTikTok(username: string) {
   const res = await fetch(`https://www.tiktok.com/@${encodeURIComponent(username)}`, {
     headers: { 'User-Agent': UA, Accept: 'text/html' },
   });
-  if (!res.ok) throw new Error(`TikTok responded ${res.status}`);
+  if (!res.ok) return emptyProfile('tiktok', username, `TikTok responded ${res.status}`);
   const html = await res.text();
 
   const m = html.match(/<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)<\/script>/s);
-  if (!m) throw new Error('TikTok data blob not found');
+  if (!m) return emptyProfile('tiktok', username, 'TikTok data blob not found');
   const data = JSON.parse(m[1]);
   const userInfo = data?.__DEFAULT_SCOPE__?.['webapp.user-detail']?.userInfo;
   const u = userInfo?.user;
   const stats = userInfo?.stats;
-  if (!u) throw new Error('profile not found');
+  if (!u) return emptyProfile('tiktok', username, 'TikTok profile not found');
 
   return {
     source: 'live',
@@ -129,7 +200,7 @@ async function scrapeThreads(username: string) {
       Accept: 'text/html,application/xhtml+xml',
     },
   });
-  if (!res.ok) throw new Error(`Threads responded ${res.status}`);
+  if (!res.ok) return emptyProfile('threads', username, `Threads responded ${res.status}`);
   const html = await res.text();
 
   const ogTitle = pickFirstMatch(html, [
@@ -168,7 +239,7 @@ async function scrapeThreads(username: string) {
   );
 
   return {
-    source: 'live',
+    source: followers || fullName || bio || profilePic ? 'live' : 'partial',
     platform: 'threads',
     username,
     full_name: fullName || username,
@@ -181,6 +252,7 @@ async function scrapeThreads(username: string) {
     is_private: /"is_private"\s*:\s*true/.test(html),
     external_url: '',
     recent_posts: [],
+    warning: followers || fullName || bio || profilePic ? '' : 'Threads public profile data not found',
   };
 }
 
@@ -233,7 +305,7 @@ serve(async (req) => {
   } catch (e) {
     console.error('[profile-analyzer]', e.message);
     return new Response(JSON.stringify({ error: e.message, source: 'error' }), {
-      status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
