@@ -2,6 +2,8 @@
 
 Checklist ini dipakai kalau Nayalyzer perlu pindah dari project Supabase lama ke project baru.
 
+Project baru saat ini: `nulaokwrxczbysfvojni`
+
 ## Yang Harus Disiapkan
 
 - Akses owner/admin ke Supabase project lama.
@@ -21,7 +23,7 @@ Checklist ini dipakai kalau Nayalyzer perlu pindah dari project Supabase lama ke
   - `THREADS_APP_SECRET`
   - `TK_CLIENT_KEY`
   - `TK_CLIENT_SECRET`
-  - `TOKEN_ENCRYPTION_KEY`
+  - `ENCRYPTION_KEY`
   - `AI_API_KEY` atau key AI lain yang dipakai
 - Daftar OAuth redirect URI baru untuk Meta/Instagram/Threads/TikTok.
 - Daftar bucket Storage dan file yang perlu dipindahkan.
@@ -35,8 +37,9 @@ Checklist ini dipakai kalau Nayalyzer perlu pindah dari project Supabase lama ke
    supabase link --project-ref <PROJECT_REF_BARU>
    supabase db push
    ```
-3. Jika migrasi repo tidak lengkap, gunakan SQL penuh:
-   `supabase/FULL_MIGRATION.sql`.
+3. Untuk setup satu kali melalui SQL Editor, gunakan SQL gabungan terbaru:
+   `supabase/NEW_PROJECT_SETUP.sql`.
+   File ini mencakup schema, RLS, RPC, storage, tabel fitur terbaru, dan fungsi seed demo.
 4. Export data dari project lama memakai Supabase CLI atau `pg_dump`.
 5. Import data ke project baru.
 6. Deploy Edge Functions ke project baru:
@@ -54,7 +57,7 @@ Checklist ini dipakai kalau Nayalyzer perlu pindah dari project Supabase lama ke
 8. Pindahkan Storage buckets dan objects jika ada file upload.
 9. Update env frontend:
    ```env
-   VITE_SUPABASE_URL=https://<PROJECT_REF_BARU>.supabase.co
+   VITE_SUPABASE_URL=https://nulaokwrxczbysfvojni.supabase.co
    VITE_SUPABASE_ANON_KEY=<ANON_KEY_BARU>
    VITE_DISABLE_APP_LOGIN=true
    ```
@@ -82,4 +85,4 @@ Checklist ini dipakai kalau Nayalyzer perlu pindah dari project Supabase lama ke
   VITE_DISABLE_APP_LOGIN=false
   ```
 - Jika login dimatikan, fitur yang bergantung ke RLS `auth.uid()` tidak bisa memakai akses user asli. Untuk produksi tanpa login, data workspace sebaiknya dipindah ke API/Edge Function yang memakai service role dan validasi workspace sendiri.
-- OAuth akun sosial tetap butuh setup redirect URI dan credentials yang benar walaupun login aplikasi dimatikan.
+- OAuth akun sosial hanya bisa dipakai setelah Supabase Auth diaktifkan kembali dan secret Edge Function sudah diatur.

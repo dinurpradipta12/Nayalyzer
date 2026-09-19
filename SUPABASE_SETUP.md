@@ -24,6 +24,10 @@
 
 ## 3. Jalankan SQL Migrations
 
+Untuk project baru yang dipakai sekarang (`nulaokwrxczbysfvojni`), cara paling mudah adalah menjalankan seluruh isi file `supabase/NEW_PROJECT_SETUP.sql` satu kali di SQL Editor. File tersebut sudah menggabungkan schema, RLS, RPC, storage, dan migrasi fitur terbaru.
+
+Alternatifnya, jalankan file-file di folder `supabase/migrations` secara berurutan.
+
 Buka **SQL Editor** di Supabase dashboard, jalankan file berikut secara berurutan:
 
 ### Step 1 — Schema

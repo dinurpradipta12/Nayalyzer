@@ -32,10 +32,10 @@ const TK_CLIENT_SECRET  = Deno.env.get('TK_CLIENT_SECRET') ?? '';
 const THREADS_APP_ID    = Deno.env.get('THREADS_APP_ID') ?? '';
 const THREADS_APP_SECRET = Deno.env.get('THREADS_APP_SECRET') ?? '';
 
-const FUNCTION_URL    = `${SUPABASE_URL}/functions/v1/platform-oauth`;
-const CALLBACK_URI    = 'https://cmgtaytmmwgdglmwdxrv.supabase.co/functions/v1/platform-oauth/callback';
-const DEAUTHORIZE_URI = 'https://cmgtaytmmwgdglmwdxrv.supabase.co/functions/v1/platform-oauth/deauthorize';
-const DATA_DELETION_URI = 'https://cmgtaytmmwgdglmwdxrv.supabase.co/functions/v1/platform-oauth/data-deletion';
+const FUNCTION_URL      = `${SUPABASE_URL}/functions/v1/platform-oauth`;
+const CALLBACK_URI      = `${SUPABASE_URL}/functions/v1/platform-oauth/callback`;
+const DEAUTHORIZE_URI   = `${SUPABASE_URL}/functions/v1/platform-oauth/deauthorize`;
+const DATA_DELETION_URI = `${SUPABASE_URL}/functions/v1/platform-oauth/data-deletion`;
 
 const cors = {
   'Access-Control-Allow-Origin':  '*',
