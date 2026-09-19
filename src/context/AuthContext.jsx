@@ -1,9 +1,19 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
+import { supabase, SUPABASE_ENABLED, APP_LOGIN_DISABLED } from '../lib/supabase';
 import { withTimeout } from '../lib/async';
 
 const AuthContext = createContext(null);
 const AUTH_CACHE_KEY = 'naya_auth_cache';
+const LOCAL_USER = {
+  id: 'local-user',
+  email: 'local@nayalyzer.id',
+  user_metadata: { full_name: 'Nayalyzer User' },
+};
+const LOCAL_PROFILE = {
+  id: LOCAL_USER.id,
+  email: LOCAL_USER.email,
+  full_name: 'Nayalyzer User',
+};
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
@@ -14,6 +24,13 @@ export function AuthProvider({ children }) {
   // ── Bootstrap session ───────────────────────────────────
   useEffect(() => {
     let mounted = true;
+
+    if (APP_LOGIN_DISABLED) {
+      setUser(LOCAL_USER);
+      setProfile(LOCAL_PROFILE);
+      setLoading(false);
+      return;
+    }
 
     if (!SUPABASE_ENABLED) {
       // Demo mode: restore from localStorage
@@ -114,6 +131,7 @@ export function AuthProvider({ children }) {
 
   // ── Auth actions ────────────────────────────────────────
   const signUp = async ({ email, password, fullName }) => {
+    if (APP_LOGIN_DISABLED) return { data: { user: LOCAL_USER } };
     if (!SUPABASE_ENABLED) return demoLogin(email);
     setError(null);
     const { data, error } = await supabase.auth.signUp({
@@ -125,6 +143,7 @@ export function AuthProvider({ children }) {
   };
 
   const signIn = async ({ email, password }) => {
+    if (APP_LOGIN_DISABLED) return { data: { user: LOCAL_USER } };
     if (!SUPABASE_ENABLED) return demoLogin(email);
     setError(null);
     const { data, error } = await withTimeout(
@@ -140,6 +159,11 @@ export function AuthProvider({ children }) {
   };
 
   const signOut = async () => {
+    if (APP_LOGIN_DISABLED) {
+      setUser(LOCAL_USER);
+      setProfile(LOCAL_PROFILE);
+      return;
+    }
     if (!SUPABASE_ENABLED) {
       localStorage.removeItem('naya_auth');
       setUser(null); setProfile(null);
@@ -151,6 +175,10 @@ export function AuthProvider({ children }) {
   };
 
   const updateProfile = async (updates) => {
+    if (APP_LOGIN_DISABLED) {
+      setProfile(p => ({ ...p, ...updates }));
+      return { data: { ...LOCAL_PROFILE, ...updates } };
+    }
     if (!SUPABASE_ENABLED) {
       setProfile(p => ({ ...p, ...updates }));
       return { data: updates };
@@ -179,6 +207,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider value={{
       user, profile, loading, error,
       isAuthenticated: !!user,
+      appLoginDisabled: APP_LOGIN_DISABLED,
       supabaseEnabled: SUPABASE_ENABLED,
       signUp, signIn, signOut, updateProfile,
     }}>

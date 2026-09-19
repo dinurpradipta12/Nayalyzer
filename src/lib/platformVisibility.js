@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase, SUPABASE_ENABLED } from './supabase';
+import { supabase, SUPABASE_ENABLED, APP_LOGIN_DISABLED } from './supabase';
 
 export const PLATFORM_NAMES = ['Instagram', 'TikTok', 'Threads'];
 export const PLATFORM_KEYS = PLATFORM_NAMES.map(platform => platform.toLowerCase());
@@ -44,7 +44,7 @@ export function usePlatformVisibility(workspaceId) {
       }
     }
 
-    if (!SUPABASE_ENABLED) {
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
       setLoading(false);
       return;
     }
@@ -73,7 +73,7 @@ export function usePlatformVisibility(workspaceId) {
     setHiddenPlatforms(normalized);
     if (workspaceId) localStorage.setItem(storageKey(workspaceId), JSON.stringify(normalized));
 
-    if (!SUPABASE_ENABLED || !workspaceId) return { data: normalized };
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED || !workspaceId) return { data: normalized };
 
     const { data, error } = await supabase
       .from('workspace_settings')

@@ -12,7 +12,7 @@ import ChartCard from '../components/ui/ChartCard';
 import PlatformBadge from '../components/ui/PlatformBadge';
 import { followerGrowthTrend, engagementTrend, reachTrend, contentData, accountData } from '../data/mockData';
 import { useSocialData } from '../hooks/useSocialData';
-import { SUPABASE_ENABLED } from '../lib/supabase';
+import { APP_LOGIN_DISABLED, SUPABASE_ENABLED } from '../lib/supabase';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { DashboardSkeleton } from '../components/ui/Skeleton';
 import { usePlatformVisibility } from '../lib/platformVisibility';
@@ -310,7 +310,7 @@ export default function Dashboard() {
   const platformLabels = ['Semua', ...(visiblePlatforms.length ? visiblePlatforms : PLATFORM_LABELS.slice(1))];
 
   // Demo mode = tanpa backend. User asli (backend aktif) tidak pernah lihat mock.
-  const demo = !SUPABASE_ENABLED;
+  const demo = APP_LOGIN_DISABLED || !SUPABASE_ENABLED;
   const { startStr, endStr } = useMemo(
     () => getDateBounds(dateFilter.preset, dateFilter.customStart, dateFilter.customEnd),
     [dateFilter]

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
+import { supabase, SUPABASE_ENABLED, APP_LOGIN_DISABLED } from '../lib/supabase';
 import { withTimeout } from '../lib/async';
 
 const CACHE_TTL_MS   = 6 * 60 * 60 * 1000; // 6 jam — ketika cache kadaluarsa, sync lagi
@@ -141,7 +141,7 @@ export function useSocialData(workspaceId) {
   const syncingRef              = useRef(false);
 
   const loadAndSync = useCallback(async (forceSync = false) => {
-    if (!SUPABASE_ENABLED || !workspaceId) { setLoading(false); return; }
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED || !workspaceId) { setLoading(false); return; }
 
     // 1. Tampilkan cache dulu (kalau ada) — langsung, tanpa tunggu network
     const cached = readCache(workspaceId);

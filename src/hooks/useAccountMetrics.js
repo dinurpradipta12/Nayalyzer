@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
+import { supabase, SUPABASE_ENABLED, APP_LOGIN_DISABLED } from '../lib/supabase';
 import { accountData, followerGrowthTrend, engagementTrend, reachTrend, kpiData } from '../data/mockData';
 import { withTimeout } from '../lib/async';
 
@@ -15,7 +15,7 @@ export function useAccountMetrics(workspaceId) {
   const [error, setError]     = useState(null);
 
   useEffect(() => {
-    if (!workspaceId || workspaceId === 'demo-ws' || !SUPABASE_ENABLED) {
+    if (!workspaceId || workspaceId === 'demo-ws' || APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
       setMetrics(accountData);
       setTrends({ follower: followerGrowthTrend, engagement: engagementTrend, reach: reachTrend });
       setKpi(kpiData);

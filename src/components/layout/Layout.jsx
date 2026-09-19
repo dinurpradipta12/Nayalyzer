@@ -6,7 +6,7 @@ import BottomNav from './BottomNav';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { useWorkspace } from '../../context/WorkspaceContext';
-import { SUPABASE_ENABLED } from '../../lib/supabase';
+import { APP_LOGIN_DISABLED, SUPABASE_ENABLED } from '../../lib/supabase';
 
 const pageTitles = {
   '/dashboard':   'Dashboard',
@@ -111,7 +111,7 @@ export default function Layout({ children }) {
               <h1 className="text-base font-bold text-gray-800">{title}</h1>
               <p className="text-xs text-gray-400 hidden sm:block">
                 {activeWorkspace?.name} · {new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
-                {!SUPABASE_ENABLED && <span className="ml-2 text-amber-500">· Mode Demo</span>}
+                {(APP_LOGIN_DISABLED || !SUPABASE_ENABLED) && <span className="ml-2 text-amber-500">· Mode Lokal</span>}
               </p>
             </div>
           </div>

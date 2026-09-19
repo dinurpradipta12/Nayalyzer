@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
+import { supabase, SUPABASE_ENABLED, APP_LOGIN_DISABLED } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { withTimeout } from '../lib/async';
 import { normalizePermissions, hasFeaturePermission } from '../lib/permissions';
@@ -70,10 +70,9 @@ export function WorkspaceProvider({ children }) {
       return;
     }
 
-    if (!SUPABASE_ENABLED) {
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
       setWorkspaces([DEMO_WORKSPACE]);
-      const saved = localStorage.getItem('naya_active_workspace');
-      setActiveWorkspace(saved ? JSON.parse(saved) : DEMO_WORKSPACE);
+      setActiveWorkspace(DEMO_WORKSPACE);
       setLoading(false);
       return;
     }
@@ -186,7 +185,7 @@ export function WorkspaceProvider({ children }) {
   // ── Load members for active workspace ──────────────────
   useEffect(() => {
     setMembers([]);
-    if (!activeWorkspace || !SUPABASE_ENABLED) return;
+    if (!activeWorkspace || APP_LOGIN_DISABLED || !SUPABASE_ENABLED) return;
 
     let mounted = true;
     withTimeout(supabase
@@ -207,7 +206,7 @@ export function WorkspaceProvider({ children }) {
 
   // ── Workspace actions ───────────────────────────────────
   const createWorkspace = async ({ name, brandName, industry, timezone }) => {
-    if (!SUPABASE_ENABLED) {
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
       const ws = { ...DEMO_WORKSPACE, id: 'demo-ws-' + Date.now(), name, brand_name: brandName, industry };
       setWorkspaces(p => [...p, ws]);
       switchWorkspace(ws);
@@ -230,7 +229,7 @@ export function WorkspaceProvider({ children }) {
 
   const updateWorkspace = async (updates) => {
     if (!activeWorkspace?.id) return { error: { message: 'Workspace belum dipilih' } };
-    if (!SUPABASE_ENABLED) {
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
       const updated = { ...activeWorkspace, ...updates };
       const nextList = workspaces.map(w => w.id === updated.id ? updated : w);
       setActiveWorkspace(updated);
@@ -262,7 +261,7 @@ export function WorkspaceProvider({ children }) {
   const inviteMember = async ({ email, role, permissions }) => {
     const normalizedPermissions = normalizePermissions(role, permissions);
     const inviteOtp = generateInviteOtp();
-    if (!SUPABASE_ENABLED) {
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
       const data = {
         id: 'demo-member-' + Date.now(),
         email,
@@ -296,7 +295,7 @@ export function WorkspaceProvider({ children }) {
   };
 
   const removeMember = async (memberId) => {
-    if (!SUPABASE_ENABLED) {
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
       setMembers(p => p.filter(m => m.id !== memberId));
       return {};
     }
@@ -310,7 +309,7 @@ export function WorkspaceProvider({ children }) {
 
   const updateMemberRole = async (memberId, role) => {
     const permissions = normalizePermissions(role);
-    if (!SUPABASE_ENABLED) {
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
       setMembers(p => p.map(m => m.id === memberId ? { ...m, role, permissions } : m));
       return {};
     }
@@ -325,7 +324,7 @@ export function WorkspaceProvider({ children }) {
   const updateMemberPermissions = async (memberId, permissions) => {
     const current = members.find(m => m.id === memberId);
     const normalizedPermissions = normalizePermissions(current?.role, permissions);
-    if (!SUPABASE_ENABLED) {
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
       setMembers(p => p.map(m => m.id === memberId ? { ...m, permissions: normalizedPermissions } : m));
       return {};
     }
@@ -338,7 +337,7 @@ export function WorkspaceProvider({ children }) {
   };
 
   const acceptInvitation = async (token) => {
-    if (!SUPABASE_ENABLED) return { data: { success: true } };
+    if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) return { data: { success: true } };
     const { data, error } = await supabase.rpc('accept_invitation', { p_token: token });
     if (!error) await loadWorkspaces();
     return { data, error };

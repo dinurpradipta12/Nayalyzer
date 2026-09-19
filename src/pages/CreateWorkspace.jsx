@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Sparkles, Building2, Globe, ChevronRight, UserPlus, Loader2, CheckCircle2 } from 'lucide-react';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { supabase, SUPABASE_ENABLED } from '../lib/supabase';
+import { supabase, SUPABASE_ENABLED, APP_LOGIN_DISABLED } from '../lib/supabase';
 
 const PENDING_INVITE_KEY = 'naya_pending_workspace_invite';
 
@@ -51,7 +51,7 @@ export default function CreateWorkspace() {
     setJoiningInvite(true);
 
     try {
-      if (!SUPABASE_ENABLED) {
+      if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
         localStorage.removeItem(PENDING_INVITE_KEY);
         navigate('/dashboard', { replace: true });
         return;

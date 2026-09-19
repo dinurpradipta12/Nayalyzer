@@ -4,7 +4,7 @@
 // Frontend only initiates OAuth popup and polls for result.
 // ============================================================
 
-import { supabase, SUPABASE_ENABLED } from './supabase';
+import { supabase, SUPABASE_ENABLED, APP_LOGIN_DISABLED } from './supabase';
 
 const FUNCTION_BASE = SUPABASE_ENABLED
   ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
@@ -12,7 +12,7 @@ const FUNCTION_BASE = SUPABASE_ENABLED
 
 // ── OAuth redirect flow ───────────────────────────────────────
 export async function initiateOAuth(platform, workspaceId) {
-  if (!SUPABASE_ENABLED) {
+  if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
     return { error: 'not_configured', fallback: 'manual_import' };
   }
 
@@ -33,7 +33,7 @@ export async function initiateOAuth(platform, workspaceId) {
 
 // ── Trigger sync ──────────────────────────────────────────────
 export async function triggerSync(connectionId, workspaceId, syncType = 'full') {
-  if (!SUPABASE_ENABLED) {
+  if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
     // Demo: simulate
     await delay(1500);
     return { success: true, inserted: 12, updated: 3, failed: 0, status: 'completed' };
@@ -49,7 +49,7 @@ export async function triggerSync(connectionId, workspaceId, syncType = 'full') 
 
 // ── Disconnect ────────────────────────────────────────────────
 export async function disconnectPlatform(connectionId) {
-  if (!SUPABASE_ENABLED) {
+  if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) {
     await delay(600);
     return { success: true };
   }
@@ -63,7 +63,7 @@ export async function disconnectPlatform(connectionId) {
 
 // ── Refresh token ─────────────────────────────────────────────
 export async function refreshToken(connectionId) {
-  if (!SUPABASE_ENABLED) return { success: true };
+  if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED) return { success: true };
   const res = await fetch(`${FUNCTION_BASE}/platform-oauth?action=refresh`, {
     method:  'POST',
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
@@ -74,7 +74,7 @@ export async function refreshToken(connectionId) {
 
 // ── Load connections from DB ──────────────────────────────────
 export async function loadConnections(workspaceId) {
-  if (!SUPABASE_ENABLED || workspaceId === 'demo-ws') return DEMO_CONNECTIONS;
+  if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED || workspaceId === 'demo-ws') return DEMO_CONNECTIONS;
 
   const { data, error } = await supabase
     .from('platform_connections')
@@ -88,7 +88,7 @@ export async function loadConnections(workspaceId) {
 
 // ── Load sync history ─────────────────────────────────────────
 export async function loadSyncHistory(workspaceId, limit = 20) {
-  if (!SUPABASE_ENABLED || workspaceId === 'demo-ws') return DEMO_SYNC_HISTORY;
+  if (APP_LOGIN_DISABLED || !SUPABASE_ENABLED || workspaceId === 'demo-ws') return DEMO_SYNC_HISTORY;
 
   const { data } = await supabase.rpc('get_sync_history', { p_workspace_id: workspaceId, p_limit: limit });
   return data ?? [];
